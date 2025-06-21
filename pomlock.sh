@@ -5,9 +5,9 @@
 CONFIG_FILE="${HOME}/.config/pomlock.conf"
 LOG_FILE="${HOME}/.local/share/pomlock/time.log"
 declare -A PRESETS=(
-    ["standard"]="1500 300 300 4"  # 25/5/5x4
-    ["extended"]="2400 600 1200 3" # 40/10/20x3
-    ["custom"]=""                  # User-provided
+    ["standard"]="25 5 5 4"  # 25/5/5x4
+    ["extended"]="40 3 10 3" # 40/10/20x3
+    ["custom"]=""            # User-provided
 )
 
 # Load configuration
@@ -180,12 +180,12 @@ enable_devices() {
 }
 
 # Main loop with logging
-log_entry "Session started - Work: ${WORK_DURATION}s, Break: ${SHORT_BREAK}s"
+log_entry "Session started - Work: ${WORK_DURATION}m, Break: ${SHORT_BREAK}m"
 
 while true; do
     # Work period
-    echo "Session started - Work: ${WORK_DURATION}s, Break: ${SHORT_BREAK}s"
-    sleep "$WORK_DURATION"
+    echo "Session started - Work: ${WORK_DURATION}m, Break: ${SHORT_BREAK}m"
+    sleep $((WORK_DURATION * 60))
     log_entry "Work period completed"
 
     # Break logic
@@ -203,7 +203,7 @@ while true; do
 
     # Block input and show overlay
     disable_devices
-    python ./pomlock-overlay.py "$break_duration" "${OVERLAY_ARGS[@]}"
+    python ./pomlock-overlay.py "$((break_duration * 60))" "${OVERLAY_ARGS[@]}"
     # /usr/lib/pomlock/pomlock-overlay.py "$break_duration" "${OVERLAY_ARGS[@]}"
 
     echo "Break completed"

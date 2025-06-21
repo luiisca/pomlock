@@ -39,30 +39,31 @@ load_config() {
     }
 }
 
-load_config
+# load_config
+echo $((10 * 50))
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-    -p | --preset)
-        if [[ ! "${PRESETS[$2]}" ]]; then
-            echo "Custom preset inputted"
-            IFS=' ' read -ra PRESET_VALUES <<<"$2"
-        else
-            IFS=' ' read -ra PRESET_VALUES <<<"${PRESETS[$2]}"
-        fi
-        WORK_DURATION="${PRESET_VALUES[0]}"
-        SHORT_BREAK="${PRESET_VALUES[1]}"
-        LONG_BREAK="${PRESET_VALUES[2]}"
-        CYCLES_BEFORE_LONG="${PRESET_VALUES[3]}"
-        echo "Values: $WORK_DURATION, $SHORT_BREAK, $LONG_BREAK, $CYCLES_BEFORE_LONG"
-        shift 2
-        ;;
-    --enable-input)
-        ENABLE_INPUT=true
-        shift
-        ;;
-    esac
-done
+# while [[ $# -gt 0 ]]; do
+#     case $1 in
+#     -p | --preset)
+#         if [[ ! "${PRESETS[$2]}" ]]; then
+#             echo "Custom preset inputted"
+#             IFS=' ' read -ra PRESET_VALUES <<<"$2"
+#         else
+#             IFS=' ' read -ra PRESET_VALUES <<<"${PRESETS[$2]}"
+#         fi
+#         WORK_DURATION="${PRESET_VALUES[0]}"
+#         SHORT_BREAK="${PRESET_VALUES[1]}"
+#         LONG_BREAK="${PRESET_VALUES[2]}"
+#         CYCLES_BEFORE_LONG="${PRESET_VALUES[3]}"
+#         echo "Values: $WORK_DURATION, $SHORT_BREAK, $LONG_BREAK, $CYCLES_BEFORE_LONG"
+#         shift 2
+#         ;;
+#     --enable-input)
+#         ENABLE_INPUT=true
+#         shift
+#         ;;
+#     esac
+# done
 
 # echo "Work duration: $WORK_DURATION"
 # echo "Short break duration: $SHORT_BREAK"
@@ -181,5 +182,5 @@ disable_device() {
     done
 }
 
-enable_device keyboard
-enable_device mouse
+# enable_device keyboard
+# enable_device mouse
