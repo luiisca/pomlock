@@ -375,7 +375,7 @@ def show_break_overlay(duration_seconds: int, overlay_config: dict):
     def on_key_press(event):
         """Handles key presses (e.g., Esc to close early)."""
         if event.keysym == 'Escape' or event.keysym == 'q':
-            logger.info("Overlay closed by user (Esc/q).")
+            logger.debug("Overlay closed by user (Esc/q).")
             root.destroy()
 
     # Bind key press events to the on_key_press function
@@ -436,8 +436,8 @@ def run_pomodoro(config: dict):
             # if not enable_input_during_break:
             #     disable_input_devices()
 
-            logger.info(f"{current_break_type} overlay starting ({
-                        break_duration_m} minutes).")
+            logger.debug(f"{current_break_type} overlay starting ({
+                break_duration_m} minutes).")
             # Call the overlay function
             show_break_overlay(break_duration_s, overlay_config)
 
@@ -557,8 +557,8 @@ def main():
         timer_values_str = None
         if config['timer'].lower() in config['presets']:
             timer_values_str = config['presets'][config['timer'].lower()]
-            logger.info(f"Applying timer preset '{
-                        config['timer']}': {timer_values_str}")
+            logger.debug(f"Applying timer preset '{
+                config['timer']}': {timer_values_str}")
         else:
             timer_values_str = config['timer']
             logger.info(f"Applying custom timer settings: '{
@@ -591,7 +591,7 @@ def main():
     if args.overlay_notify_msg is not None:
         config['overlay_opts']['notify_msg'] = args.overlay_notify_msg
 
-    logger.info(f"Effective configuration after CLI overrides: {config}")
+    logger.debug(f"Effective configuration after CLI overrides: {config}")
 
     # Validate durations and cycles (must be positive integers)
     for key in ['work_duration', 'short_break', 'long_break', 'cycles_before_long']:
