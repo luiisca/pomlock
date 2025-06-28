@@ -485,9 +485,9 @@ def main():
                         help="Path to log file.")
 
     # Pomodoro timing arguments (these override config file settings)
-    parser.add_argument("--timer", "-t", type=str, choices=list(default_presets.keys()),  # Restrict choices or allow custom
-                        help="""Set a timer configuration. Choose from presets (e.g., 'standard', 'extended') or provide custom space-separated values: 'WORK_DURATION SHORT_BREAK_DURATION LONG_BREAK_DURATION CYCLES_BEFORE_LONG'.
-                        Example custom: '25 5 15 4' for 25m work, 5m short break, 15m long break, 4 cycles.""")
+    parser.add_argument("--timer", "-t", type=str,  # Allow custom string input, presets handled in logic
+                        help="""Set a timer configuration. Choose from presets (e.g., 'standard', 'extended', 'dev') or provide custom space-separated values: 'WORK_DURATION SHORT_BREAK_DURATION LONG_BREAK_DURATION CYCLES_BEFORE_LONG'.
+                        Example custom: '-t "25 5 15 4"' for 25m work, 5m short break, 15m long break, 4 cycles.""")
     parser.add_argument("--work-duration", type=int,
                         help="Work duration in minutes.")
     parser.add_argument("--short-break", type=int,
