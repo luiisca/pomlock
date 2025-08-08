@@ -12,63 +12,70 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 - ⌨️ **Input Blocking**: Physically disables keyboard/mouse during breaks
 - 📝 **Activity Logging**: Simple timestamped work/break tracking
 - 🎨 **Custom Overlay**: Adjustable full-screen break timer display
-- 🔄 **Safe Mode**: Optional monitoring without input blocking (`--enable-input`)
+- 🔄 **Safe Mode**: Optional monitoring without input blocking (`--enable-input-during-break`)
 
 ## Installation
 
 ```bash
 git clone https://github.com/yourusername/pomlock.git
 cd pomlock
-chmod +x pomlock.sh pomlock-overlay.py
-# cp pomlock.conf.example ~/.config/pomlock.conf
+chmod +x py-pomlock.py
 ```
 
 ## Basic Usage
 
 ```bash
 # Start with standard 25/5 Pomodoro
-./pomlock.sh --preset standard
+./py-pomlock.py --timer standard
 
-# Custom work/break schedule (45min work, 15min breaks)
-./pomlock.sh --preset custom 2700 900 1800 3
+# Custom work/break schedule (45min work, 15min short breaks, 30min long breaks, after 3 cycles)
+./py-pomlock.py --timer "45 15 30 3"
 
 # Monitor without blocking input
-./pomlock.sh --enable-input
+./py-pomlock.py --enable-input-during-break
 ```
 
-<!-- ## Configuration -->
-<!---->
-<!-- Edit `~/.config/pomlock.conf`: -->
-<!-- ```ini -->
-<!-- # Core timing (seconds) -->
-<!-- WORK_DURATION=1500     # 25 minutes -->
-<!-- SHORT_BREAK=300        # 5 minutes -->
-<!-- LONG_BREAK=900         # 15 minutes -->
-<!-- CYCLES_BEFORE_LONG=4   # Long break after 4 work sessions -->
-<!---->
-<!-- # Display settings -->
-<!-- FONT_SIZE=48 -->
-<!-- COLOR="white" -->
-<!-- BG_COLOR="black" -->
-<!-- OPACITY=0.8 -->
-<!-- ``` -->
+## Configuration
+
+Edit `~/.config/pomlock/pomlock.conf`:
+```ini
+[pomodoro]
+pomodoro = 25
+short_break = 5
+long_break = 20
+cycles_before_long = 4
+enable_input_during_break = false
+
+[overlay]
+font_size = 48
+color = white
+bg_color = black
+opacity = 0.8
+notify = true
+notify_msg = Time for a break!
+
+[presets]
+standard = 25 5 20 4
+extended = 60 10 20 3
+```
 
 ## Log Format
 
 Plain text format compatible with most time trackers:
 ```
-2023-07-20 14:25:00 WORK_START 1500
-2023-07-20 14:50:00 BREAK_START 300
-2023-07-20 14:55:00 WORK_START 1500
+2023-07-20 14:25:00 - INFO - Pomodoro started (25 minutes).
+2023-07-20 14:50:00 - INFO - Pomodoro completed (Duration: 25m) (Cycle: 1)
+2023-07-20 14:50:00 - INFO - Short break started (Duration: 5m) (Cycle: 1)
+2023-07-20 14:55:00 - INFO - Break completed (Cycle: 1)
 ```
 
 ## Safety
 
 - Input automatically restores when program exits
-- Use `--enable-input` for non-blocking monitoring
+- Use `--enable-input-during-break` for non-blocking monitoring
 - Force stop at any time with:
 ```bash
-pkill -f pomlock.sh && pkill -f pomlock-overlay.py
+pkill -f py-pomlock.py
 ```
 
 ## Roadmap
