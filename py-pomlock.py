@@ -154,14 +154,12 @@ def log_event(event_type: str, duration_minutes: int = 0, cycle_count: int = -1)
 
 
 # --- XInput Device Control ---
-KBD_ENABLED_PATTERN = re.compile(
-    r'.*↳.*(?:keyboard|sonix)\s*id=(\d+)\s*\[slave\s*keyboard', re.IGNORECASE)
-MOUSE_ENABLED_PATTERN = re.compile(
-    r'.*↳.*(?:mouse|trackpad|touchpad)\s*id=(\d+)\s*\[slave\s*pointer', re.IGNORECASE)
-KBD_DISABLED_PATTERN = re.compile(
-    r'.*(?:keyboard|sonix)\s*id=(\d+)\s*\[floating\s*slave\]', re.IGNORECASE)
-MOUSE_DISABLED_PATTERN = re.compile(
-    r'.*(?:mouse|trackpad|touchpad)\s*id=(\d+)\s*\[floating\s*slave\]', re.IGNORECASE)
+SLAVE_KBD_PATTERN = re.compile(
+    r'↳(?!.*xtest).*id=(\d+).*slav[e\s]+keyboard', re.IGNORECASE)
+SLAVE_POINTER_PATTERN = re.compile(
+    r'↳(?!.*xtest).*id=(\d+).*slav[e\s]+pointer', re.IGNORECASE)
+FLOATING_SLAVE_PATTERN = re.compile(
+    r'.*id=(\d+).*\[floating\s*slave\]', re.IGNORECASE)
 
 
 def _get_xinput_ids(pattern: re.Pattern) -> list[str]:
@@ -185,7 +183,7 @@ def _set_device_state(device_ids: list[str], action: str):
         try:
             subprocess.run(['xinput', action, device_id],
                            check=True, capture_output=True)
-            logger.info(f"{action.capitalize()}d device ID: {device_id}")
+            logger.debug(f"{action.capitalize()}d device ID: {device_id}")
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             logger.error(f"Failed to {action} device {device_id}: {e}")
             break
@@ -193,14 +191,13 @@ def _set_device_state(device_ids: list[str], action: str):
 
 def disable_input_devices():
     logger.info("Disabling input devices...")
-    _set_device_state(_get_xinput_ids(KBD_ENABLED_PATTERN), "disable")
-    _set_device_state(_get_xinput_ids(MOUSE_ENABLED_PATTERN), "disable")
+    _set_device_state(_get_xinput_ids(SLAVE_KBD_PATTERN), "disable")
+    _set_device_state(_get_xinput_ids(SLAVE_POINTER_PATTERN), "disable")
 
 
 def enable_input_devices():
     logger.info("Enabling input devices...")
-    _set_device_state(_get_xinput_ids(KBD_DISABLED_PATTERN), "enable")
-    _set_device_state(_get_xinput_ids(MOUSE_DISABLED_PATTERN), "enable")
+    _set_device_state(_get_xinput_ids(FLOATING_SLAVE_PATTERN), "enable")
 
 
 # --- Configuration Loading ---
