@@ -21,68 +21,98 @@ DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
 
 # --- Argument and Configuration Single Source of Truth ---
 # This dictionary drives the entire configuration system:
-# - 'group': Maps the setting to a section in the .ini config file.
+# - 'group': Maps the setting to a section in the .config config file.
 # - 'default': The ultimate fallback value.
 # - 'type', 'action', 'help': Used to dynamically build the argparse parser.
 # - 'short', 'long': The command-line flags.
 ARGUMENT_CONFIG = {
     # Pomodoro Timer Settings
     'timer': {
-        'group': 'pomodoro', 'default': 'standard', 'type': str,
+        'group': 'pomodoro',
+        'default': 'standard',
+        'type': str,
         'short': '-t', 'long': '--timer',
         'help': """Set a timer preset or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
                  Example: --timer "25 5 15 4"."""
     },
     'pomodoro': {
-        'group': 'pomodoro', 'default': 25, 'type': int,
+        'group': 'pomodoro',
+        'default': 25,
+        'type': int,
         'long': '--pomodoro', 'help': "Interval of work time in minutes."
     },
     'short_break': {
-        'group': 'pomodoro', 'default': 5, 'type': int,
+        'group': 'pomodoro',
+        'default': 5,
+        'type': int,
         'long': '--short-break', 'help': "Short break duration in minutes."
     },
     'long_break': {
-        'group': 'pomodoro', 'default': 20, 'type': int,
+        'group': 'pomodoro',
+        'default': 20,
+        'type': int,
         'long': '--long-break', 'help': "Long break duration in minutes."
     },
     'cycles_before_long': {
-        'group': 'pomodoro', 'default': 4, 'type': int,
+        'group': 'pomodoro',
+        'default': 4,
+        'type': int,
         'long': '--cycles-before-long', 'help': "Cycles before a long break."
     },
     'enable_input_during_break': {
-        'group': 'pomodoro', 'default': False,
-        'long': '--enable-input-during-break', 'action': argparse.BooleanOptionalAction,
+        'group': 'pomodoro',
+        'default': False,
+        'long': '--enable-input-during-break',
+        'action': argparse.BooleanOptionalAction,
         'help': "Enable/disable keyboard/mouse input during break time."
     },
     # Overlay Settings
     'overlay_font_size': {
-        'group': 'overlay', 'default': 48, 'type': int,
-        'long': '--overlay-font-size', 'help': "Font size for overlay timer."
+        'group': 'overlay',
+        'default': 48,
+        'type': int,
+        'long': '--overlay-font-size',
+        'help': "Font size for overlay timer."
     },
     'overlay_color': {
-        'group': 'overlay', 'default': 'white', 'type': str,
-        'long': '--overlay-color', 'help': "Text color for overlay (e.g., 'white', '#FF0000')."
+        'group': 'overlay',
+        'default': 'white',
+        'type': str,
+        'long': '--overlay-color',
+        'help': "Text color for overlay (e.g., 'white', '#FF0000')."
     },
     'overlay_bg_color': {
-        'group': 'overlay', 'default': 'black', 'type': str,
-        'long': '--overlay-bg-color', 'help': "Background color for overlay."
+        'group': 'overlay',
+        'default': 'black',
+        'type': str,
+        'long': '--overlay-bg-color',
+        'help': "Background color for overlay."
     },
     'overlay_opacity': {
-        'group': 'overlay', 'default': 0.8, 'type': float,
-        'long': '--overlay-opacity', 'help': "Opacity for overlay (0.0 to 1.0)."
+        'group': 'overlay',
+        'default': 0.8,
+        'type': float,
+        'long': '--overlay-opacity',
+        'help': "Opacity for overlay (0.0 to 1.0)."
     },
     'overlay_notify': {
-        'group': 'overlay', 'default': True,
-        'long': '--overlay-notify', 'action': argparse.BooleanOptionalAction,
+        'group': 'overlay',
+        'default': True,
+        'long': '--overlay-notify',
+        'action': argparse.BooleanOptionalAction,
         'help': "Enable/disable desktop notification for breaks."
     },
     'overlay_notify_msg': {
-        'group': 'overlay', 'default': 'Time for a break!', 'type': str,
-        'long': '--overlay-notify-msg', 'help': "Custom message for desktop notification."
+        'group': 'overlay',
+        'default': 'Time for a break!',
+        'type': str,
+        'long': '--overlay-notify-msg',
+        'help': "Custom message for desktop notification."
     },
     # Presets - not a CLI arg, but part of config
     'presets': {
-        'group': 'presets', 'default': {
+        'group': 'presets',
+        'default': {
             "standard": "25 5 20 4",
             "extended": "60 10 20 3"
         }
@@ -191,7 +221,7 @@ def get_default_settings() -> dict:
 
 def load_configuration(config_file_path_str: str) -> dict:
     """
-    Loads configuration from an .ini file, using ARGUMENT_CONFIG for defaults.
+    Loads configuration from a .config file, using ARGUMENT_CONFIG for defaults.
     """
     settings = get_default_settings()
     config_file_path = Path(config_file_path_str)
@@ -211,9 +241,7 @@ def load_configuration(config_file_path_str: str) -> dict:
                      config_file_path}: {e}. Using defaults.")
         return settings
 
-    # Dynamically read sections based on ARGUMENT_CONFIG groups
-    # TODO: could be simpler, there is no apparent usefulness and getting the parsed value corectly typed,
-    # it doesnt aid editor completion
+    # override default settings with config file
     for key, arg_config in ARGUMENT_CONFIG.items():
         group = arg_config.get('group')
         if not group or group not in parser:
@@ -387,7 +415,7 @@ def main():
     args = parser.parse_args()
 
     # --- Settings layering: Defaults -> Config File -> CLI Args ---
-    # 1. Load settings from config file (which includes defaults)
+    # 1. Load settings from config file (will include defaults where applicable)
     config = load_configuration(args.config_file)
 
     # 2. Setup logging
@@ -441,7 +469,7 @@ def main():
         logger.error(f"Overlay opacity must be between 0.0 and 1.0. Exiting.")
         sys.exit(1)
 
-    print("config", config)
+    print("final config", config)
     run_pomodoro(config)
 
 
