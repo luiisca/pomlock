@@ -114,7 +114,8 @@ ARGUMENT_CONFIG = {
         'group': 'presets',
         'default': {
             "standard": "25 5 20 4",
-            "extended": "60 10 20 3"
+            "ultradian": "90 20 20 1",
+            "fifty_ten": "50 10 10 1"
         }
     }
 }
