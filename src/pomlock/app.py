@@ -467,7 +467,7 @@ def main():
         logger.error(f"Overlay opacity must be between 0.0 and 1.0. Exiting.")
         sys.exit(1)
 
-    print("final config", config)
+    # print("final config", config)
     run_pomodoro(config)
 
 
