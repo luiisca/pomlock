@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/luiisca/pomlock/compare/v1.2.0...v1.2.1) (2025-08-10)
+
+
+### Bug Fixes
+
+* formatting, better comments ([3fd5adf](https://github.com/luiisca/pomlock/commit/3fd5adf0d80e40296b72307c1709266aa8bb74fd))
+* **xinput:** improve device detection and error handling ([7897b53](https://github.com/luiisca/pomlock/commit/7897b537a1ed554b5b877010fca529d34eaf42ad))
+
 ## [1.2.0](https://github.com/luiisca/pomlock/compare/v1.1.0...v1.2.0) (2025-06-28)
 
 
