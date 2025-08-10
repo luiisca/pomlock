@@ -1,0 +1,36 @@
+[build-system]
+requires = ["uv_build>=0.8.7,<0.9.0"]
+build-backend = "uv_build"
+
+[project]
+name = "pomlock"
+version = "1.2.1"
+authors = [
+  { name="Luis Cadillo", email="luiscaf3r@gmail.com" },
+]
+description = "A Linux utility that enforces regular breaks by temporarily blocking input devices"
+keywords = ["pomodoro", "timer", "productivity", "focus", "linux", "cli", "input-blocker", "break-timer", "time-management"]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Utilities",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Repository = "https://github.com/luiisca/pomlock"
+Issues = "https://github.com/luiisca/pomlock/issues"
+
+[project.scripts]
+pomlock = "pomlock.app:main"
+
+# [[tool.uv.index]]
+# name = "testpypi"
+# url = "https://test.pypi.org/simple/"
+# publish-url = "https://test.pypi.org/legacy/"
+# explicit = true

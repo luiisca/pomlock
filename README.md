@@ -17,7 +17,16 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 
 ## Installation
 
-under construction 🏗️
+### pip
+```bash
+pip install pomlock
+```
+
+### uv
+```bash
+uv tool install pomlock
+```
+
 <!-- ### Arch Linux (AUR) -->
 <!-- ```bash -->
 <!-- yay -S pomlock -->
