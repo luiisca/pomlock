@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/luiisca/pomlock/compare/v1.2.1...v1.2.2) (2025-08-10)
+
+
+### Bug Fixes
+
+* remove debug print calls ([dae6860](https://github.com/luiisca/pomlock/commit/dae6860d62112c37fa3f1bfe1aff21bced5374b5))
+
 ## [1.2.1](https://github.com/luiisca/pomlock/compare/v1.2.0...v1.2.1) (2025-08-10)
 
 
