@@ -17,14 +17,9 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 
 ## Installation
 
-### pip
+### pipx
 ```bash
-pip install pomlock
-```
-
-### uv
-```bash
-uv tool install pomlock
+pipx install pomlock
 ```
 
 <!-- ### Arch Linux (AUR) -->
@@ -37,7 +32,7 @@ uv tool install pomlock
 <!---->
 <!-- ### Manual -->
 <!---->
-<!-- <!-- TODO: some ideas --> -->
+<!-- <!-- TODO: some ideas -->
 <!-- options: -->
 <!-- 1. curl command:  -->
 <!-- [uv package manager](https://github.com/astral-sh/uv?tab=readme-ov-file#installation) -->
