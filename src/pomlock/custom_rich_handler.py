@@ -10,6 +10,8 @@ class CustomRichHandler(RichHandler):
         super().__init__(*args, **kwargs)
         self.log_render = LogRender(
             show_time=kwargs.get('show_time', True),
+            show_timer=kwargs.get('show_timer', True),
+            show_cycle=kwargs.get('show_cycle', True),
             show_level=kwargs.get('show_level', True),
             show_path=kwargs.get('show_path', True),
             time_format=kwargs.get('log_time_format', "[%x %X]"),
@@ -29,6 +31,8 @@ class CustomRichHandler(RichHandler):
                 message_renderable, traceback],
             log_time=log_time,
             timer_m=getattr(record, 'minutes', ""),
+            crr_cycle=getattr(record, 'crr_cycle', None),
+            cycles_total=getattr(record, 'cycles_total', None),
             time_format=time_format,
             level=level,
             path=path,

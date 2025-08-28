@@ -13,10 +13,10 @@ from tkinter import font
 from queue import Queue
 from threading import Thread
 
-from rich import print
+from rich import print, rule
 from rich.console import Group
 from rich.live import Live
-from rich.table import Table
+from rich.table import Table, Column
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -169,8 +169,11 @@ class ExtraDataFormatter(logging.Formatter):
         s = super().format(record)
         extra = {k: v for k, v in record.__dict__.items(
         ) if k not in logging.LogRecord.__dict__ and k not in ['message', 'asctime']}
+
+        if hasattr(record, 'crr_cycle') and hasattr(record, 'cycles_total'):
+            s += f" - Cycle: {record.crr_cycle}/{record.cycles_total}"
         if hasattr(record, 'minutes'):
-            s += f" - Timer: {record.minutes}"
+            s += f" - Timer: {record.minutes} minutes"
         return s
 
 
@@ -259,6 +262,15 @@ def get_default_settings() -> dict:
         else:
             defaults[key] = config['default']
     return defaults
+
+
+class ConditionalCycleColumn(TextColumn):
+    """A column that only displays cycle information if it's available."""
+
+    def render(self, task) -> Text:
+        if task.fields.get("crr_cycle") and task.fields.get("cycles_total"):
+            return Text(f"{task.fields['crr_cycle']}/{task.fields['cycles_total']}")
+        return Text("-", justify="center")
 
 
 class App(tk.Tk):
@@ -519,22 +531,23 @@ class App(tk.Tk):
         l_break_s = l_break_m * 5
         cycles = config['cycles']
 
-        cycle_progress = Progress()
-        session_progress = Progress(
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(),
-            "[progress.percentage]{task.percentage:>3.1f}%",
-            TextColumn(
-                "{task.fields[crr_cycle]}/{task.fields[cycles_total]}"),
+        progress = Progress(
+            TextColumn("[bold]{task.description}"),
+            BarColumn(table_column=Column(ratio=1)),
+            "[progress.percentage]{task.percentage:>3.0f}%",
+            "•",
+            ConditionalCycleColumn(""),
+            "•",
             TimeRemainingColumn(),
         )
 
         progress_table = Table.grid()
         progress_table.add_row(
-            Panel.fit(Group(
-                session_progress,
-                cycle_progress,
-            ), border_style="green", padding=(1, 2)),
+            Panel.fit(
+                progress,
+                border_style="green",
+                padding=(1, 2),
+            ),
             # Panel.fit(
             #     Group(
             #         Text("[bold]Pomodoro Timer"),
@@ -545,13 +558,13 @@ class App(tk.Tk):
 
         total_time_s = (((pomo_m + s_break_m) * cycles) +
                         (l_break_m - s_break_m)) * 60
-        session_job = session_progress.add_task(
+        session_job = progress.add_task(
             "Session",
             total=total_time_s,
             cycles_total=cycles,
             crr_cycle=1
         )
-        cycle_job = cycle_progress.add_task(
+        cycle_job = progress.add_task(
             "Pomodoro",
             total=pomo_s
         )
@@ -565,24 +578,34 @@ class App(tk.Tk):
             with Live(progress_table, refresh_per_second=10):
                 while True:
                     if self.crr_cycle == 1:
-                        logger.info(
-                            f"Session #{self.crr_session} started")
+                        logger.debug(
+                            f"Session #{self.crr_session} started"
+                        )
+                        print(rule.Rule(
+                            f"Session #{self.crr_session} started"
+                        ))
 
                     # pomodoro
                     self._notify(config['pomo_notify_msg'])
-                    logger.info(f"Pomodoro #{self.crr_cycle} started", extra={
-                                "minutes": pomo_s})
+                    logger.info(
+                        "Pomodoro started",
+                        extra={
+                            "minutes": pomo_s,
+                            "crr_cycle": self.crr_cycle,
+                            "cycles_total": cycles
+                        }
+                    )
 
-                    cycle_progress.reset(
+                    progress.reset(
                         cycle_job,
                         total=pomo_s,
                         description="Pomodoro"
                     )
 
                     pomo_threads = [
-                        Thread(target=timer, args=(cycle_progress,
+                        Thread(target=timer, args=(progress,
                                                    cycle_job, pomo_s), daemon=True),
-                        Thread(target=timer, args=(session_progress,
+                        Thread(target=timer, args=(progress,
                                                    session_job, pomo_s), daemon=True)
                     ]
                     for t in pomo_threads:
@@ -590,7 +613,8 @@ class App(tk.Tk):
                     for t in pomo_threads:
                         t.join()
 
-                    logger.debug(f"Pomodoro #{self.crr_cycle} completed")
+                    logger.debug(
+                        f"Pomodoro {self.crr_cycle}/{cycles} completed")
 
                     # break
                     break_m = s_break_m
@@ -602,10 +626,14 @@ class App(tk.Tk):
                         break_type = "Long break"
 
                     self._notify(config['break_notify_msg'])
-                    logger.info(f"{break_type} started",
-                                extra={"minutes": break_s})
+                    logger.info(
+                        f"{break_type} started",
+                        extra={
+                            "minutes": break_s,
+                        }
+                    )
 
-                    cycle_progress.reset(
+                    progress.reset(
                         cycle_job,
                         total=break_s,
                         description=break_type
@@ -615,9 +643,9 @@ class App(tk.Tk):
                         disable_input_devices()
 
                     break_threads = [
-                        Thread(target=timer, args=(cycle_progress,
+                        Thread(target=timer, args=(progress,
                                                    cycle_job, break_s), daemon=True),
-                        Thread(target=timer, args=(session_progress,
+                        Thread(target=timer, args=(progress,
                                                    session_job, break_s), daemon=True)
                     ]
                     self.queue.put({
@@ -636,26 +664,26 @@ class App(tk.Tk):
 
                     # session completed
                     if self.crr_cycle >= cycles:
-                        cycle_progress.reset(
+                        progress.reset(
                             cycle_job,
                             total=pomo_s,
                             description="Pomodoro"
                         )
-                        session_progress.reset(
+                        progress.reset(
                             session_job,
                             total=total_time_s,
                             crr_cycle=1,
                             cycles_total=cycles
                         )
 
-                        logger.info(
+                        logger.debug(
                             f"Session #{self.crr_session} completed")
                         self.crr_session += 1
                         self.total_completed_sessions += 1
                         self.crr_cycle = 1
                     else:
                         # cycle completed
-                        session_progress.update(
+                        progress.update(
                             task_id=session_job,
                             crr_cycle=self.crr_cycle + 1
                         )

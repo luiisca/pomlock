@@ -15,6 +15,7 @@ class LogRender:
         self,
         show_time: bool = True,
         show_timer: bool = True,
+        show_cycle: bool = True,
         show_level: bool = False,
         show_path: bool = True,
         time_format: Union[str, FormatTimeCallable] = "[%x %X]",
@@ -24,6 +25,7 @@ class LogRender:
         self.show_time = show_time
         self.show_timer = show_timer
         self.show_level = show_level
+        self.show_cycle = show_cycle
         self.show_path = show_path
         self.time_format = time_format
         self.omit_repeated_times = omit_repeated_times
@@ -36,6 +38,8 @@ class LogRender:
         renderables: Iterable["ConsoleRenderable"],
         log_time: Optional[datetime] = None,
         timer_m: Optional[str] = None,
+        crr_cycle: Optional[int] = None,
+        cycles_total: Optional[int] = None,
         time_format: Optional[Union[str, FormatTimeCallable]] = None,
         level: TextType = "",
         path: Optional[str] = None,
@@ -54,6 +58,8 @@ class LogRender:
         output.add_column(ratio=1, style="log.message", overflow="fold")
         if self.show_path and path:
             output.add_column(style="log.path")
+        if self.show_cycle:
+            output.add_column(style="log.time", justify="full")
         if self.show_timer:
             output.add_column(style="log.time", justify="full")
 
@@ -88,13 +94,19 @@ class LogRender:
                 )
             row.append(path_text)
 
+        if self.show_cycle:
+            row.append(
+                Text(str(f"[{crr_cycle}/{cycles_total}]"),
+                     style="bold") if crr_cycle and cycles_total else ""
+            )
         if self.show_timer and timer_m:
             # TODO: could be more dynamic
             # instead of adding leading/trailing empty spaces
             # we could predetermine the entire string length based on the largest timer_m
             spaces = " " * (4 - len(str(timer_m)))
             row.append(
-                Text(str(f"[{spaces}{timer_m} min  ]"), style="bold"))
+                Text(str(f"[{spaces}{timer_m} min  ]"), style="bold")
+            )
 
         output.add_row(*row)
         return output
