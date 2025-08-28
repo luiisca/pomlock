@@ -12,7 +12,9 @@ description = "A Linux utility that enforces regular breaks by temporarily block
 keywords = ["pomodoro", "timer", "productivity", "focus", "linux", "cli", "input-blocker", "break-timer", "time-management"]
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "rich"
+]
 classifiers = [
     "Intended Audience :: End Users/Desktop",
     "Programming Language :: Python :: 3",

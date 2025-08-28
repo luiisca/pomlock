@@ -1,18 +1,34 @@
 #!/usr/bin/env python3
 
-# Standard library imports
 import argparse
 import configparser
 import logging
 import re
 import subprocess
 import sys
-import time
+from time import sleep, time
 from pathlib import Path
 import tkinter as tk
 from tkinter import font
+from queue import Queue
+from threading import Thread
 
-# --- Application Constants ---
+from rich import print
+from rich.console import Group
+from rich.live import Live
+from rich.table import Table
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TaskID,
+    TextColumn,
+    TimeRemainingColumn,
+)
+from rich.text import Text
+from utils import plural
+from custom_rich_handler import CustomRichHandler
+
 APP_NAME = "pomlock"
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / APP_NAME
 DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / APP_NAME
@@ -20,18 +36,19 @@ DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / f"{APP_NAME}.conf"
 DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
 
 # --- Argument and Configuration Single Source of Truth ---
-# This dictionary drives the entire configuration system:
+# This dictionary drives the entire settings system:
 # - 'group': Maps the setting to a section in the .config config file.
 # - 'default': The ultimate fallback value.
 # - 'type', 'action', 'help': Used to dynamically build the argparse parser.
 # - 'short', 'long': The command-line flags.
-ARGUMENT_CONFIG = {
+ARGUMENTS_CONFIG = {
     # Pomodoro Timer Settings
     'timer': {
         'group': 'pomodoro',
         'default': 'standard',
         'type': str,
-        'short': '-t', 'long': '--timer',
+        'short': '-t',
+        'long': '--timer',
         'help': """Set a timer preset or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
                  Example: --timer "25 5 15 4"."""
     },
@@ -39,32 +56,67 @@ ARGUMENT_CONFIG = {
         'group': 'pomodoro',
         'default': 25,
         'type': int,
-        'long': '--pomodoro', 'help': "Interval of work time in minutes."
+        'short': '-p',
+        'long': '--pomodoro',
+        'help': "Interval of work time in minutes."
     },
     'short_break': {
         'group': 'pomodoro',
         'default': 5,
         'type': int,
+        'short': '-s',
         'long': '--short-break', 'help': "Short break duration in minutes."
     },
     'long_break': {
         'group': 'pomodoro',
         'default': 20,
         'type': int,
-        'long': '--long-break', 'help': "Long break duration in minutes."
+        'short': '-l',
+        'long': '--long-break',
+        'help': "Long break duration in minutes."
     },
-    'cycles_before_long': {
+    'cycles': {
         'group': 'pomodoro',
         'default': 4,
         'type': int,
-        'long': '--cycles-before-long', 'help': "Cycles before a long break."
+        'short': '-c',
+        'long': '--cycles',
+        'help': "Cycles before a long break."
     },
-    'enable_input_during_break': {
+    'block_input': {
         'group': 'pomodoro',
-        'default': False,
-        'long': '--enable-input-during-break',
+        'default': True,
+        'long': '--block-input',
         'action': argparse.BooleanOptionalAction,
-        'help': "Enable/disable keyboard/mouse input during break time."
+        'help': "Enable/disable keyboard/mouse input during break."
+    },
+    'notify': {
+        'group': 'pomodoro',
+        'default': True,
+        'long': '--notify',
+        'action': argparse.BooleanOptionalAction,
+        'help': "Enable/disable desktop notificatios."
+    },
+    'break_notify_msg': {
+        'group': 'pomodoro',
+        'default': 'Time for a break!',
+        'type': str,
+        'long': '--break-notify-msg',
+        'help': "Message for break notifications."
+    },
+    'long_break_notify_msg': {
+        'group': 'pomodoro',
+        'default': 'Time for a long break!',
+        'type': str,
+        'long': '--long-break-notify-msg',
+        'help': "Message for long break notifications."
+    },
+    'pomo_notify_msg': {
+        'group': 'pomodoro',
+        'default': 'Time for a pomodoro!',
+        'type': str,
+        'long': '--pomo-notify-msg',
+        'help': "Message for pomodoro notifications."
     },
     # Overlay Settings
     'overlay_font_size': {
@@ -95,20 +147,6 @@ ARGUMENT_CONFIG = {
         'long': '--overlay-opacity',
         'help': "Opacity for overlay (0.0 to 1.0)."
     },
-    'overlay_notify': {
-        'group': 'overlay',
-        'default': True,
-        'long': '--overlay-notify',
-        'action': argparse.BooleanOptionalAction,
-        'help': "Enable/disable desktop notification for breaks."
-    },
-    'overlay_notify_msg': {
-        'group': 'overlay',
-        'default': 'Time for a break!',
-        'type': str,
-        'long': '--overlay-notify-msg',
-        'help': "Custom message for desktop notification."
-    },
     # Presets - not a CLI arg, but part of config
     'presets': {
         'group': 'presets',
@@ -123,35 +161,41 @@ ARGUMENT_CONFIG = {
 
 # --- Logging Setup ---
 logger = logging.getLogger(APP_NAME)
+logger.setLevel(logging.DEBUG)
+
+
+class ExtraDataFormatter(logging.Formatter):
+    def format(self, record):
+        s = super().format(record)
+        extra = {k: v for k, v in record.__dict__.items(
+        ) if k not in logging.LogRecord.__dict__ and k not in ['message', 'asctime']}
+        if hasattr(record, 'minutes'):
+            s += f" - Timer: {record.minutes}"
+        return s
 
 
 def setup_logging(log_file_path_str: str, verbose: bool):
     log_file_path = Path(log_file_path_str)
     log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    fh = logging.FileHandler(log_file_path)
+    fh.setLevel(logging.DEBUG)
 
-    # add file handler
-    file_handler = logging.FileHandler(log_file_path)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    rh = CustomRichHandler(
+        rich_tracebacks=True,
+        show_path=False,
+        show_level=False,
+        log_time_format='[%H:%M:%S]'
+    )
+    rh.setLevel(logging.DEBUG if verbose else logging.INFO)
 
-    # add console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.DEBUG if verbose else logging.INFO)
-    logger.addHandler(console_handler)
+    fh_formatter = ExtraDataFormatter(
+        '%(asctime)s - %(levelname)s - %(message)s'
+    )
+    fh.setFormatter(fh_formatter)
 
-    logger.setLevel(logging.DEBUG)
-
-
-def log_event(event_type: str, duration_minutes: int = 0, cycle_count: int = -1):
-    message_parts = [event_type]
-    if duration_minutes > 0:
-        message_parts.append(f"(Duration: {duration_minutes}m)")
-    if cycle_count != -1:
-        message_parts.append(f"(Cycle: {cycle_count})")
-    logger.info(" ".join(message_parts))
+    logger.addHandler(fh)
+    logger.addHandler(rh)
 
 
 # --- XInput Device Control ---
@@ -191,13 +235,13 @@ def _set_device_state(device_ids: list[str], action: str):
 
 
 def disable_input_devices():
-    logger.info("Disabling input devices...")
+    logger.debug("Disabling input devices...")
     _set_device_state(_get_xinput_ids(SLAVE_KBD_PATTERN), "disable")
     _set_device_state(_get_xinput_ids(SLAVE_POINTER_PATTERN), "disable")
 
 
 def enable_input_devices():
-    logger.info("Enabling input devices...")
+    logger.debug("Enabling input devices...")
     _set_device_state(_get_xinput_ids(FLOATING_SLAVE_PATTERN), "enable")
 
 
@@ -207,7 +251,7 @@ def get_default_settings() -> dict:
     defaults = {}
     # Create a nested dictionary for overlay options
     defaults['overlay'] = {}
-    for key, config in ARGUMENT_CONFIG.items():
+    for key, config in ARGUMENTS_CONFIG.items():
         if key.startswith('overlay_'):
             # Strip 'overlay_' prefix for the key inside overlay
             opt_key = key.replace('overlay_', '', 1)
@@ -217,259 +261,432 @@ def get_default_settings() -> dict:
     return defaults
 
 
-def load_configuration(config_file_path_str: str) -> dict:
-    """
-    Loads configuration from a .config file, using ARGUMENT_CONFIG for defaults.
-    """
-    settings = get_default_settings()
-    config_file_path = Path(config_file_path_str)
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
 
-    if not config_file_path.exists():
-        config_file_path.parent.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Config file not found at {
-                    config_file_path}. Using default settings.")
-        return settings
+        self.bind("<KeyPress>", self._on_key_press)
+        self.mainloop_run = False
+        self.queue = Queue()
+        self.crr_cycle = 1
+        self.crr_session = 1
+        self.total_completed_sessions = 0
 
-    logger.info(f"Loading configuration from {config_file_path}")
-    parser = configparser.ConfigParser()
-    try:
-        parser.read(config_file_path)
-    except configparser.Error as e:
-        logger.error(f"Error reading config file {
-                     config_file_path}: {e}. Using defaults.")
-        return settings
+        self.flags, self.args = self.parse_args()
+        self.settings = self.parse_config(self.flags, self.args)
+        self.setup_overlay(self.settings)
+        self.timer_label = self.setup_overlay_timer_label(self.settings)
 
-    # override default settings with config file
-    for key, arg_config in ARGUMENT_CONFIG.items():
-        group = arg_config.get('group')
-        if not group or group not in parser:
-            continue
+        Thread(target=self.run_pomodoro, kwargs={
+               "config": self.settings}, daemon=True).start()
 
-        if group == 'presets':
-            for name, value in parser['presets'].items():
-                settings['presets'][name.lower()] = value
-        elif key in parser[group]:
-            # Determine the correct 'get' method based on the defined type
-            value_type = arg_config.get('type', str)
-            try:
-                if value_type == int:
-                    value = parser[group].getint(key)
-                elif value_type == float:
-                    value = parser[group].getfloat(key)
-                elif arg_config.get('action') == argparse.BooleanOptionalAction:
-                    value = parser[group].getboolean(key)
+        self.update_overlay_window(
+            self.settings,
+            self.queue,
+            self.timer_label
+        )
+
+    def setup_overlay(self, config):
+        self.title("Pomlock Break")
+        self.attributes("-fullscreen", 1)
+
+        self.attributes('-alpha', config["overlay"].get('opacity', 0.8))
+        self.configure(
+            cursor="none", background=config["overlay"].get('bg_color', 'black'))
+        self.attributes('-topmost', True)
+        self.focus_force()
+
+    def setup_overlay_timer_label(self, config):
+        try:
+            label_font = font.Font(family="Helvetica", size=int(
+                config["overlay"].get('font_size', 48)))
+        except tk.TclError:
+            logger.debug("Helvetica font not found. Using fallback.")
+            label_font = font.Font(family="Arial", size=36)
+
+        timer_label = tk.Label(self, text="",
+                               fg=config["overlay"].get('color', 'white'),
+                               bg=config["overlay"].get('bg_color', 'black'),
+                               font=label_font)
+        timer_label.pack(expand=True)
+
+        return timer_label
+
+    def update_overlay_window(self, config, queue, timer_label):
+        try:
+            queue_item = self.queue.get()
+
+            if queue_item["type"] == "exit":
+                self.destroy()
+                return
+
+            if queue_item["type"] == "break":
+                queue.task_done()
+                duration_s = queue_item["msg"]
+
+                start_time = time()
+
+                def update_overlay_timer():
+                    remaining_s = duration_s - (time() - start_time)
+                    if remaining_s <= 0:
+                        self.withdraw()
+                        self.update_overlay_window(config, queue, timer_label)
+                        return
+
+                    mins, secs = divmod(int(remaining_s), 60)
+                    timer_label.config(text=f"BREAK TIME\n{
+                                       mins:02d}:{secs:02d}")
+                    self.after(1000, update_overlay_timer)
+
+                update_overlay_timer()
+                if self.mainloop_run:
+                    self.deiconify()
                 else:
-                    value = parser[group].get(key)
+                    self.mainloop_run = True
+                    self.mainloop()
 
-                # Place value in the correct part of the settings dict
-                if key.startswith('overlay_'):
-                    settings['overlay'][key.replace(
+        except KeyboardInterrupt:
+            logger.info("Exiting...")
+            self.destroy()
+
+    def parse_args(self):
+        flags = {
+            arg for arg in sys.argv[1:] if arg.startswith('-')}
+
+        parser = argparse.ArgumentParser(
+            description=f"A Pomodoro timer with input locking. Config: '{
+                DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}'.",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+
+        # --- Dynamically build parser from ARGUMENTS_CONFIG ---
+        for dest, config in ARGUMENTS_CONFIG.items():
+            if 'long' not in config:
+                continue  # Skip config-only entries like 'presets'
+
+            names = [config['long']]
+            if 'short' in config:
+                names.append(config['short'])
+
+            # Use **kwargs to unpack the dictionary of arguments into the function call
+            kwargs = {'dest': dest,
+                      'help': config['help'], 'default': config['default']}
+            if 'type' in config:
+                kwargs['type'] = config['type']
+            if 'action' in config:
+                kwargs['action'] = config['action']
+
+            # Default is not set here so we can reliably detect if user provided the arg
+            parser.add_argument(*names, **kwargs)
+
+        # Add arguments not in the main config system
+        parser.add_argument("--config-file", type=str,
+                            default=str(DEFAULT_CONFIG_FILE), help="Path to settings file.")
+        parser.add_argument("--log-file", type=str,
+                            default=str(DEFAULT_LOG_FILE), help="Path to log file.")
+        parser.add_argument("--verbose", action="store_true",
+                            help="Enable verbose output to console.")
+
+        return flags, parser.parse_args()
+
+    def load_configuration(self, args):
+        """
+        Loads settings from a .config file, using ARGUMENTS_CONFIG for defaults.
+        """
+        settings = get_default_settings()
+        config_file_path = Path(args.config_file)
+
+        if not config_file_path.exists():
+            config_file_path.parent.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"Config file not found at {
+                config_file_path}. Using default settings.")
+            return settings
+
+        logger.debug(f"Loading settings from {config_file_path}")
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(config_file_path)
+        except configparser.Error as e:
+            logger.error(f"Error reading config file {
+                         config_file_path}: {e}. Using defaults.")
+            return settings
+
+        # override default settings with config file
+        for key, arg_config in ARGUMENTS_CONFIG.items():
+            group = arg_config.get('group')
+            if not group or group not in parser:
+                continue
+
+            if group == 'presets':
+                for name, value in parser['presets'].items():
+                    settings['presets'][name.lower()] = value
+            elif key in parser[group]:
+                # Determine the correct 'get' method based on the defined type
+                value_type = arg_config.get('type', str)
+                try:
+                    if value_type == int:
+                        value = parser[group].getint(key)
+                    elif value_type == float:
+                        value = parser[group].getfloat(key)
+                    elif arg_config.get('action') == argparse.BooleanOptionalAction:
+                        value = parser[group].getboolean(key)
+                    else:
+                        value = parser[group].get(key)
+
+                    # Place value in the correct part of the settings dict
+                    if key.startswith('overlay_'):
+                        settings['overlay'][key.replace(
+                            'overlay_', '', 1)] = value
+                    else:
+                        settings[key] = value
+                except (ValueError, configparser.NoOptionError) as e:
+                    logger.debug(f"Could not parse '{
+                        key}' from config file: {e}. Using default.")
+
+        return settings
+
+    def parse_config(self, flags, args):
+        # --- Settings layering: Defaults -> Config File -> CLI Args ---
+        # 1. Load settings from config file (will include defaults where applicable)
+        config = self.load_configuration(args)
+
+        # 2. Setup logging
+        setup_logging(args.log_file, args.verbose)
+        logger.debug(f"User provided flags: {flags}")
+        logger.debug(f"Config after loading file: {config}")
+
+        # 3. Override with any explicit CLI arguments
+        for dest, arg_config in ARGUMENTS_CONFIG.items():
+            # Check if any long or short flag was passed by the user
+            was_provided = arg_config.get('long') in flags or arg_config.get(
+                'short') in flags
+            was_no_block_input_provided = "--no-block-input" in flags
+
+            if was_provided:
+                value = getattr(args, dest)
+                if dest.startswith('overlay_'):
+                    config['overlay'][dest.replace(
                         'overlay_', '', 1)] = value
                 else:
-                    settings[key] = value
-            except (ValueError, configparser.NoOptionError) as e:
-                logger.warning(f"Could not parse '{
-                               key}' from config file: {e}. Using default.")
+                    config[dest] = value
+                logger.debug(f"CLI override: '{dest}' set to '{value}'")
 
-    return settings
+            if was_no_block_input_provided:
+                config['block_input'] = False
 
+        # --- Process complex settings like timer presets ---
+        if config.get('timer'):
+            timer_val = config['timer'].lower()
+            timer_str = config['presets'].get(
+                timer_val, timer_val if ' ' in timer_val else None)
 
-# --- Overlay Display Logic ---
-def show_break_overlay(duration_seconds: int, overlay_config: dict):
-    if overlay_config.get('notify', False):
+            if timer_str:
+                logger.debug(f"Applying timer setting: '{timer_str}'")
+                try:
+                    values = [int(v) for v in timer_str.split()]
+                    if len(values) == 4:
+                        config['pomodoro'], config['short_break'], config[
+                            'long_break'], config['cycles'] = values
+                    else:
+                        logger.error(f"Invalid timer format '{
+                            timer_str}'. Expected 4 numbers.")
+                        sys.exit(1)
+                except ValueError:
+                    logger.error(
+                        f"Invalid numbers in timer string '{timer_str}'.")
+
+        logger.debug(f"Effective settings: {config}")
+
+        # --- Final Validation ---
+        for key in ['pomodoro', 'short_break', 'long_break', 'cycles']:
+            if not (isinstance(config.get(key), int) and config.get(key, 0) > 0):
+                logger.error(f"{key.replace('_', ' ').capitalize()
+                                } must be a positive integer. Exiting.")
+                sys.exit(1)
+        if not (0.0 <= config['overlay'].get('opacity', 0.8) <= 1.0):
+            logger.error(
+                f"Overlay opacity must be between 0.0 and 1.0. Exiting.")
+            sys.exit(1)
+
+        return config
+
+    def run_pomodoro(self, config):
+        pomo_m = config['pomodoro']
+        pomo_s = pomo_m * 5
+        s_break_m = config['short_break']
+        s_break_s = s_break_m * 5
+        l_break_m = config['long_break']
+        l_break_s = l_break_m * 5
+        cycles = config['cycles']
+
+        cycle_progress = Progress()
+        session_progress = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            "[progress.percentage]{task.percentage:>3.1f}%",
+            TextColumn(
+                "{task.fields[crr_cycle]}/{task.fields[cycles_total]}"),
+            TimeRemainingColumn(),
+        )
+
+        progress_table = Table.grid()
+        progress_table.add_row(
+            Panel.fit(Group(
+                session_progress,
+                cycle_progress,
+            ), border_style="green", padding=(1, 2)),
+            # Panel.fit(
+            #     Group(
+            #         Text("[bold]Pomodoro Timer"),
+            #         Text("[bold]Session Timer")
+            #     ), border_style="green", padding=(1, 2)
+            # ),
+        )
+
+        total_time_s = (((pomo_m + s_break_m) * cycles) +
+                        (l_break_m - s_break_m)) * 60
+        session_job = session_progress.add_task(
+            "Session",
+            total=total_time_s,
+            cycles_total=cycles,
+            crr_cycle=1
+        )
+        cycle_job = cycle_progress.add_task(
+            "Pomodoro",
+            total=pomo_s
+        )
+
         try:
-            subprocess.Popen(
-                ['notify-send', overlay_config.get('notify_msg', 'Time for a break!')])
-        except (FileNotFoundError, Exception) as e:
-            logger.warning(f"Failed to send notification: {e}")
+            def timer(progress: Progress, job: TaskID, duration_s: int):
+                for _ in range(duration_s):
+                    progress.advance(job)
+                    sleep(1)
 
-    root = tk.Tk()
-    root.title("Pomlock Break")
-    root.attributes('-fullscreen', True)
-    root.attributes('-alpha', overlay_config.get('opacity', 0.8))
-    root.configure(background=overlay_config.get('bg_color', 'black'))
-    root.attributes('-topmost', True)
-    root.focus_force()
-    root.config(cursor="none")
+            with Live(progress_table, refresh_per_second=10):
+                while True:
+                    if self.crr_cycle == 1:
+                        logger.info(
+                            f"Session #{self.crr_session} started")
 
-    try:
-        label_font = font.Font(family="Helvetica", size=int(
-            overlay_config.get('font_size', 48)))
-    except tk.TclError:
-        logger.warning("Helvetica font not found. Using fallback.")
-        label_font = font.Font(family="Arial", size=36)
+                    # pomodoro
+                    self._notify(config['pomo_notify_msg'])
+                    logger.info(f"Pomodoro #{self.crr_cycle} started", extra={
+                                "minutes": pomo_s})
 
-    timer_label = tk.Label(root, text="",
-                           fg=overlay_config.get('color', 'white'),
-                           bg=overlay_config.get('bg_color', 'black'),
-                           font=label_font)
-    timer_label.pack(expand=True)
+                    cycle_progress.reset(
+                        cycle_job,
+                        total=pomo_s,
+                        description="Pomodoro"
+                    )
 
-    start_time = time.time()
+                    pomo_threads = [
+                        Thread(target=timer, args=(cycle_progress,
+                                                   cycle_job, pomo_s), daemon=True),
+                        Thread(target=timer, args=(session_progress,
+                                                   session_job, pomo_s), daemon=True)
+                    ]
+                    for t in pomo_threads:
+                        t.start()
+                    for t in pomo_threads:
+                        t.join()
 
-    def update_timer_display():
-        remaining_seconds = duration_seconds - (time.time() - start_time)
-        if remaining_seconds <= 0:
-            root.destroy()
-            return
-        mins, secs = divmod(int(remaining_seconds), 60)
-        timer_label.config(text=f"BREAK TIME\n{mins:02d}:{secs:02d}")
-        root.after(1000, update_timer_display)
+                    logger.debug(f"Pomodoro #{self.crr_cycle} completed")
 
-    def on_key_press(event):
+                    # break
+                    break_m = s_break_m
+                    break_s = s_break_s
+                    break_type = "Short break"
+                    if self.crr_cycle >= cycles:
+                        break_m = l_break_m
+                        break_s = l_break_s
+                        break_type = "Long break"
+
+                    self._notify(config['break_notify_msg'])
+                    logger.info(f"{break_type} started",
+                                extra={"minutes": break_s})
+
+                    cycle_progress.reset(
+                        cycle_job,
+                        total=break_s,
+                        description=break_type
+                    )
+
+                    if config['block_input']:
+                        disable_input_devices()
+
+                    break_threads = [
+                        Thread(target=timer, args=(cycle_progress,
+                                                   cycle_job, break_s), daemon=True),
+                        Thread(target=timer, args=(session_progress,
+                                                   session_job, break_s), daemon=True)
+                    ]
+                    self.queue.put({
+                        "type": "break",
+                        "msg": break_s
+                    })
+                    for t in break_threads:
+                        t.start()
+                    for t in break_threads:
+                        t.join()
+
+                    logger.debug(f"{break_type} completed")
+
+                    if config['block_input']:
+                        enable_input_devices()
+
+                    # session completed
+                    if self.crr_cycle >= cycles:
+                        cycle_progress.reset(
+                            cycle_job,
+                            total=pomo_s,
+                            description="Pomodoro"
+                        )
+                        session_progress.reset(
+                            session_job,
+                            total=total_time_s,
+                            crr_cycle=1,
+                            cycles_total=cycles
+                        )
+
+                        logger.info(
+                            f"Session #{self.crr_session} completed")
+                        self.crr_session += 1
+                        self.total_completed_sessions += 1
+                        self.crr_cycle = 1
+                    else:
+                        # cycle completed
+                        session_progress.update(
+                            task_id=session_job,
+                            crr_cycle=self.crr_cycle + 1
+                        )
+                        self.crr_cycle += 1
+
+        except Exception as e:
+            logger.error(f"{e}")
+
+    def _on_key_press(self, event):
         if event.keysym.lower() in ['escape', 'q']:
             logger.debug("Overlay closed by user.")
-            root.destroy()
+            self.destroy()
 
-    root.bind("<KeyPress>", on_key_press)
-    update_timer_display()
-    root.mainloop()
-    logger.debug("Overlay mainloop finished.")
-
-
-# --- Main Application Logic ---
-def run_pomodoro(config: dict):
-    work_m = config['pomodoro']
-    short_m = config['short_break']
-    long_m = config['long_break']
-    cycles_long = config['cycles_before_long']
-
-    log_event(f"Session started - Work: {work_m}m, Short: {
-              short_m}m, Long: {long_m}m, Cycles: {cycles_long}")
-
-    cycle_count = 0
-    try:
-        while True:
-            logger.info(f"Pomodoro started ({work_m} minutes).")
-            time.sleep(work_m * 60)
-            log_event("Pomodoro completed", work_m, cycle_count + 1)
-
-            cycle_count += 1
-            if cycle_count >= cycles_long:
-                break_m, break_type = long_m, "Long break"
-                log_event(break_type + " started", break_m, cycle_count)
-                cycle_count = 0
-            else:
-                break_m, break_type = short_m, "Short break"
-                log_event(break_type + " started", break_m, cycle_count)
-
-            if not config['enable_input_during_break']:
-                disable_input_devices()
-
-            show_break_overlay(break_m * 60, config['overlay'])
-            logger.info(f"{break_type} completed.")
-            log_event(
-                "Break completed", cycle_count=cycle_count if cycle_count != 0 else cycles_long)
-
-            if not config['enable_input_during_break']:
-                enable_input_devices()
-
-    except KeyboardInterrupt:
-        logger.info("Session interrupted by user. Exiting.")
-    finally:
-        if not config.get('enable_input_during_break', False):
-            logger.info("Ensuring input devices are enabled on exit...")
-            enable_input_devices()
-        log_event("Session ended")
-
-
-def main():
-    user_provided_flags = {arg for arg in sys.argv[1:] if arg.startswith('-')}
-
-    parser = argparse.ArgumentParser(
-        description=f"A Pomodoro timer with input locking. Config: '{
-            DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}'.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
-    # --- Dynamically build parser from ARGUMENT_CONFIG ---
-    for dest, config in ARGUMENT_CONFIG.items():
-        if 'long' not in config:
-            continue  # Skip config-only entries like 'presets'
-
-        names = [config['long']]
-        if 'short' in config:
-            names.append(config['short'])
-
-        # Use **kwargs to unpack the dictionary of arguments into the function call
-        kwargs = {'dest': dest,
-                  'help': config['help'], 'default': config['default']}
-        if 'type' in config:
-            kwargs['type'] = config['type']
-        if 'action' in config:
-            kwargs['action'] = config['action']
-
-        # Default is not set here so we can reliably detect if user provided the arg
-        parser.add_argument(*names, **kwargs)
-
-    # Add arguments not in the main config system
-    parser.add_argument("-c", "--config-file", type=str,
-                        default=str(DEFAULT_CONFIG_FILE), help="Path to configuration file.")
-    parser.add_argument("-l", "--log-file", type=str,
-                        default=str(DEFAULT_LOG_FILE), help="Path to log file.")
-    parser.add_argument("-v", "--verbose", action="store_true",
-                        help="Enable verbose output to console.")
-
-    args = parser.parse_args()
-
-    # --- Settings layering: Defaults -> Config File -> CLI Args ---
-    # 1. Load settings from config file (will include defaults where applicable)
-    config = load_configuration(args.config_file)
-
-    # 2. Setup logging
-    setup_logging(args.log_file, args.verbose)
-    logger.debug(f"User provided flags: {user_provided_flags}")
-    logger.debug(f"Config after loading file: {config}")
-
-    # 3. Override with any explicit CLI arguments
-    for dest, arg_config in ARGUMENT_CONFIG.items():
-        # Check if the long or short flag was passed by the user
-        was_provided = arg_config.get('long') in user_provided_flags or \
-            arg_config.get('short') in user_provided_flags
-
-        if was_provided:
-            value = getattr(args, dest)
-            if dest.startswith('overlay_'):
-                config['overlay'][dest.replace('overlay_', '', 1)] = value
-            else:
-                config[dest] = value
-            logger.debug(f"CLI override: '{dest}' set to '{value}'")
-
-    # --- Process complex settings like timer presets ---
-    if config.get('timer'):
-        timer_val = config['timer'].lower()
-        timer_str = config['presets'].get(
-            timer_val, timer_val if ' ' in timer_val else None)
-
-        if timer_str:
-            logger.debug(f"Applying timer setting: '{timer_str}'")
+    def _notify(self, msg):
+        if self.settings.get('notify', False):
             try:
-                values = [int(v) for v in timer_str.split()]
-                if len(values) == 4:
-                    config['pomodoro'], config['short_break'], config['long_break'], config['cycles_before_long'] = values
-                else:
-                    logger.warning(f"Invalid timer format '{
-                                   timer_str}'. Expected 4 numbers.")
-                    sys.exit(1)
-            except ValueError:
-                logger.warning(
-                    f"Invalid numbers in timer string '{timer_str}'.")
-
-    logger.debug(f"Effective configuration: {config}")
-
-    # --- Final Validation ---
-    for key in ['pomodoro', 'short_break', 'long_break', 'cycles_before_long']:
-        if not (isinstance(config.get(key), int) and config.get(key, 0) > 0):
-            logger.error(f"{key.replace('_', ' ').capitalize()
-                            } must be a positive integer. Exiting.")
-            sys.exit(1)
-    if not (0.0 <= config['overlay'].get('opacity', 0.8) <= 1.0):
-        logger.error(f"Overlay opacity must be between 0.0 and 1.0. Exiting.")
-        sys.exit(1)
-
-    # print("final config", config)
-    run_pomodoro(config)
+                subprocess.Popen(
+                    ['notify-send', msg])
+            except (FileNotFoundError, Exception) as e:
+                logger.error(f"Failed to send notification: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        app = App()
+    except KeyboardInterrupt:
+        logger.info("Exiting...")
+        app.destroy()
+    except Exception as e:
+        logger.error(e)
+        if app.settings.get('block_input'):
+            logger.info("Ensuring input devices are enabled on exit...")
+            enable_input_devices()
+        logger.info("Session ended")
