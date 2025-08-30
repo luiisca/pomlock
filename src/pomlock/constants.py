@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from pathlib import Path
 import argparse
 
@@ -8,6 +9,7 @@ DEFAULT_CONFIG_DIR = Path.home() / ".config" / APP_NAME
 DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / APP_NAME
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / f"{APP_NAME}.conf"
 DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
+SESSION_TYPE = os.environ.get('XDG_SESSION_TYPE', 'x11')
 
 # --- Argument and Configuration Single Source of Truth ---
 # This dictionary drives the entire settings system:

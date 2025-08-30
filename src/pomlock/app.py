@@ -28,6 +28,7 @@ from constants import (
     DEFAULT_CONFIG_FILE,
     DEFAULT_LOG_FILE,
     ARGUMENTS_CONFIG,
+    SESSION_TYPE,
 )
 from logger import setup_logging, logger
 from input_handler import disable_input_devices, enable_input_devices
@@ -85,7 +86,8 @@ class App(tk.Tk):
 
     def setup_overlay(self, config):
         self.title("Pomlock Break")
-        self.attributes("-fullscreen", 1)
+        if SESSION_TYPE == "x11":
+            self.attributes("-fullscreen", True)
 
         self.attributes('-alpha', config["overlay"].get('opacity', 0.8))
         self.configure(
@@ -138,8 +140,10 @@ class App(tk.Tk):
                 update_overlay_timer()
                 if self.mainloop_run:
                     self.deiconify()
+                    self.after(10, self._fullscreen)
                 else:
                     self.mainloop_run = True
+                    self.after(10, self._fullscreen)
                     self.mainloop()
 
         except KeyboardInterrupt:
@@ -490,6 +494,11 @@ class App(tk.Tk):
                     ['notify-send', msg])
             except (FileNotFoundError, Exception) as e:
                 logger.error(f"Failed to send notification: {e}")
+
+    def _fullscreen(self, event=None):
+        if SESSION_TYPE == 'wayland':
+            self.attributes("-fullscreen", True)
+            return "break"
 
 
 if __name__ == "__main__":

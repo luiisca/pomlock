@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-import os
 import re
 import subprocess
 
 from logger import logger
-
-SESSION_TYPE = os.environ.get('XDG_SESSION_TYPE', 'x11')
+from constants import SESSION_TYPE
 
 # --- XInput Device Control ---
 SLAVE_KBD_PATTERN = re.compile(
@@ -80,7 +78,7 @@ def _get_wayland_input_devices() -> list[str]:
                 devices.append(kernel_path)
 
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        logger.error(f"Failed to list libinput devices: {e}")
+        logger.debug(f"Failed to list libinput devices: {e}")
 
     return devices
 
@@ -116,7 +114,7 @@ def disable_input_devices():
                 )
                 logger.debug(f"Disabling device: {device}")
             except (FileNotFoundError, subprocess.CalledProcessError) as e:
-                logger.error(f"Failed to disable device {device}: {e}")
+                logger.debug(f"Failed to disable device {device}: {e}")
     else:
         _set_device_state(_get_xinput_ids(SLAVE_KBD_PATTERN), "disable")
         _set_device_state(_get_xinput_ids(SLAVE_POINTER_PATTERN), "disable")
@@ -133,7 +131,7 @@ def enable_input_devices():
                            check=True, capture_output=True)
             logger.debug("Enabled all devices by killing evtest processes.")
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
-            logger.error(f"Failed to enable devices: {e}")
+            logger.debug(f"Failed to enable devices: {e}")
     else:
         _set_device_state(_get_xinput_ids(FLOATING_SLAVE_PATTERN), "enable")
         return
