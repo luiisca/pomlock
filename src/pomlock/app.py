@@ -2,8 +2,6 @@
 
 import argparse
 import configparser
-import logging
-import re
 import subprocess
 import sys
 from time import sleep, time
@@ -14,7 +12,6 @@ from queue import Queue
 from threading import Thread
 
 from rich import print, rule
-from rich.console import Group
 from rich.live import Live
 from rich.table import Table, Column
 from rich.panel import Panel
@@ -26,226 +23,14 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from rich.text import Text
-from utils import plural
-from custom_rich_handler import CustomRichHandler
 
-APP_NAME = "pomlock"
-DEFAULT_CONFIG_DIR = Path.home() / ".config" / APP_NAME
-DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / APP_NAME
-DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / f"{APP_NAME}.conf"
-DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
-
-# --- Argument and Configuration Single Source of Truth ---
-# This dictionary drives the entire settings system:
-# - 'group': Maps the setting to a section in the .config config file.
-# - 'default': The ultimate fallback value.
-# - 'type', 'action', 'help': Used to dynamically build the argparse parser.
-# - 'short', 'long': The command-line flags.
-ARGUMENTS_CONFIG = {
-    # Pomodoro Timer Settings
-    'timer': {
-        'group': 'pomodoro',
-        'default': 'standard',
-        'type': str,
-        'short': '-t',
-        'long': '--timer',
-        'help': """Set a timer preset or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
-                 Example: --timer "25 5 15 4"."""
-    },
-    'pomodoro': {
-        'group': 'pomodoro',
-        'default': 25,
-        'type': int,
-        'short': '-p',
-        'long': '--pomodoro',
-        'help': "Interval of work time in minutes."
-    },
-    'short_break': {
-        'group': 'pomodoro',
-        'default': 5,
-        'type': int,
-        'short': '-s',
-        'long': '--short-break', 'help': "Short break duration in minutes."
-    },
-    'long_break': {
-        'group': 'pomodoro',
-        'default': 20,
-        'type': int,
-        'short': '-l',
-        'long': '--long-break',
-        'help': "Long break duration in minutes."
-    },
-    'cycles': {
-        'group': 'pomodoro',
-        'default': 4,
-        'type': int,
-        'short': '-c',
-        'long': '--cycles',
-        'help': "Cycles before a long break."
-    },
-    'block_input': {
-        'group': 'pomodoro',
-        'default': True,
-        'long': '--block-input',
-        'action': argparse.BooleanOptionalAction,
-        'help': "Enable/disable keyboard/mouse input during break."
-    },
-    'notify': {
-        'group': 'pomodoro',
-        'default': True,
-        'long': '--notify',
-        'action': argparse.BooleanOptionalAction,
-        'help': "Enable/disable desktop notificatios."
-    },
-    'break_notify_msg': {
-        'group': 'pomodoro',
-        'default': 'Time for a break!',
-        'type': str,
-        'long': '--break-notify-msg',
-        'help': "Message for break notifications."
-    },
-    'long_break_notify_msg': {
-        'group': 'pomodoro',
-        'default': 'Time for a long break!',
-        'type': str,
-        'long': '--long-break-notify-msg',
-        'help': "Message for long break notifications."
-    },
-    'pomo_notify_msg': {
-        'group': 'pomodoro',
-        'default': 'Time for a pomodoro!',
-        'type': str,
-        'long': '--pomo-notify-msg',
-        'help': "Message for pomodoro notifications."
-    },
-    # Overlay Settings
-    'overlay_font_size': {
-        'group': 'overlay',
-        'default': 48,
-        'type': int,
-        'long': '--overlay-font-size',
-        'help': "Font size for overlay timer."
-    },
-    'overlay_color': {
-        'group': 'overlay',
-        'default': 'white',
-        'type': str,
-        'long': '--overlay-color',
-        'help': "Text color for overlay (e.g., 'white', '#FF0000')."
-    },
-    'overlay_bg_color': {
-        'group': 'overlay',
-        'default': 'black',
-        'type': str,
-        'long': '--overlay-bg-color',
-        'help': "Background color for overlay."
-    },
-    'overlay_opacity': {
-        'group': 'overlay',
-        'default': 0.8,
-        'type': float,
-        'long': '--overlay-opacity',
-        'help': "Opacity for overlay (0.0 to 1.0)."
-    },
-    # Presets - not a CLI arg, but part of config
-    'presets': {
-        'group': 'presets',
-        'default': {
-            "standard": "25 5 20 4",
-            "ultradian": "90 20 20 1",
-            "fifty_ten": "50 10 10 1"
-        }
-    }
-}
-
-
-# --- Logging Setup ---
-logger = logging.getLogger(APP_NAME)
-logger.setLevel(logging.DEBUG)
-
-
-class ExtraDataFormatter(logging.Formatter):
-    def format(self, record):
-        s = super().format(record)
-        extra = {k: v for k, v in record.__dict__.items(
-        ) if k not in logging.LogRecord.__dict__ and k not in ['message', 'asctime']}
-
-        if hasattr(record, 'crr_cycle') and hasattr(record, 'cycles_total'):
-            s += f" - Cycle: {record.crr_cycle}/{record.cycles_total}"
-        if hasattr(record, 'minutes'):
-            s += f" - Timer: {record.minutes} minutes"
-        return s
-
-
-def setup_logging(log_file_path_str: str, verbose: bool):
-    log_file_path = Path(log_file_path_str)
-    log_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-    fh = logging.FileHandler(log_file_path)
-    fh.setLevel(logging.DEBUG)
-
-    rh = CustomRichHandler(
-        rich_tracebacks=True,
-        show_path=False,
-        show_level=False,
-        log_time_format='[%H:%M:%S]'
-    )
-    rh.setLevel(logging.DEBUG if verbose else logging.INFO)
-
-    fh_formatter = ExtraDataFormatter(
-        '%(asctime)s - %(levelname)s - %(message)s'
-    )
-    fh.setFormatter(fh_formatter)
-
-    logger.addHandler(fh)
-    logger.addHandler(rh)
-
-
-# --- XInput Device Control ---
-SLAVE_KBD_PATTERN = re.compile(
-    r'↳(?!.*xtest).*id=(\d+).*slav[e\s]+keyboard', re.IGNORECASE)
-SLAVE_POINTER_PATTERN = re.compile(
-    r'↳(?!.*xtest).*id=(\d+).*slav[e\s]+pointer', re.IGNORECASE)
-FLOATING_SLAVE_PATTERN = re.compile(
-    r'.*id=(\d+).*\[floating\s*slave\]', re.IGNORECASE)
-
-
-def _get_xinput_ids(pattern: re.Pattern) -> list[str]:
-    ids = []
-    try:
-        result = subprocess.run(
-            ['xinput', 'list'], capture_output=True, text=True, check=True)
-        for line in result.stdout.splitlines():
-            match = pattern.search(line)
-            if match:
-                ids.append(match.group(1))
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        logger.error(f"xinput command failed: {e}")
-    return ids
-
-
-def _set_device_state(device_ids: list[str], action: str):
-    if not device_ids:
-        return
-    for device_id in device_ids:
-        try:
-            subprocess.run(['xinput', action, device_id],
-                           check=True, capture_output=True)
-            logger.debug(f"{action.capitalize()}d device ID: {device_id}")
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
-            logger.error(f"Failed to {action} device {device_id}: {e}")
-            break
-
-
-def disable_input_devices():
-    logger.debug("Disabling input devices...")
-    _set_device_state(_get_xinput_ids(SLAVE_KBD_PATTERN), "disable")
-    _set_device_state(_get_xinput_ids(SLAVE_POINTER_PATTERN), "disable")
-
-
-def enable_input_devices():
-    logger.debug("Enabling input devices...")
-    _set_device_state(_get_xinput_ids(FLOATING_SLAVE_PATTERN), "enable")
+from constants import (
+    DEFAULT_CONFIG_FILE,
+    DEFAULT_LOG_FILE,
+    ARGUMENTS_CONFIG,
+)
+from logger import setup_logging, logger
+from input_handler import disable_input_devices, enable_input_devices
 
 
 # --- Configuration Loading ---
@@ -517,7 +302,8 @@ class App(tk.Tk):
                 sys.exit(1)
         if not (0.0 <= config['overlay'].get('opacity', 0.8) <= 1.0):
             logger.error(
-                f"Overlay opacity must be between 0.0 and 1.0. Exiting.")
+                "Overlay opacity must be between 0.0 and 1.0. Exiting."
+            )
             sys.exit(1)
 
         return config
@@ -714,6 +500,14 @@ if __name__ == "__main__":
         app.destroy()
     except Exception as e:
         logger.error(e)
+        if app.settings.get('block_input'):
+            logger.info("Ensuring input devices are enabled on exit...")
+            enable_input_devices()
+        logger.info("Session ended")
+
+    # this breaks -h for some reason but ensures devices are enabled
+    # if the program is interrupted on the middle of a break
+    finally:
         if app.settings.get('block_input'):
             logger.info("Ensuring input devices are enabled on exit...")
             enable_input_devices()
