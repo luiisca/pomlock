@@ -373,9 +373,12 @@ class App(tk.Tk):
 
         try:
             def timer(progress: Progress, job: TaskID, duration_s: int):
-                for _ in range(duration_s):
-                    progress.advance(job)
-                    sleep(1)
+                start_time = time()
+                while (elapsed := time() - start_time) < duration_s:
+                    progress.update(job, completed=elapsed)
+                    sleep(0.1)
+                # Ensure it finishes at 100%
+                progress.update(job, completed=duration_s)
 
             with Live(progress_table, refresh_per_second=10):
                 while True:
