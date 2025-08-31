@@ -9,6 +9,7 @@ DEFAULT_CONFIG_DIR = Path.home() / ".config" / APP_NAME
 DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / APP_NAME
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / f"{APP_NAME}.conf"
 DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
+STATE_FILE = Path(f"/tmp/{APP_NAME}.json")
 SESSION_TYPE = os.environ.get('XDG_SESSION_TYPE', 'x11')
 
 # --- Argument and Configuration Single Source of Truth ---
@@ -66,12 +67,12 @@ ARGUMENTS_CONFIG = {
         'action': argparse.BooleanOptionalAction,
         'help': "Enable/disable keyboard/mouse input during break."
     },
-    'no_overlay': {
+    'overlay': {
         'group': 'pomodoro',
         'default': True,
-        'long': '--no-overlay',
+        'long': '--overlay',
         'action': argparse.BooleanOptionalAction,
-        'help': "Enable/disable keyboard/mouse input during break."
+        'help': "Enable/disable overlay break window."
     },
     'notify': {
         'group': 'pomodoro',
@@ -101,34 +102,47 @@ ARGUMENTS_CONFIG = {
         'long': '--pomo-notify-msg',
         'help': "Message for pomodoro notifications."
     },
+    'callback': {
+        'group': 'pomodoro',
+        'default': '',
+        'type': str,
+        'long': '--callback',
+        'help': "Script to call for pomodoro and break events."
+    },
     # Overlay Settings
     'overlay_font_size': {
-        'group': 'overlay',
+        'group': 'overlay_opts',
         'default': 48,
         'type': int,
         'long': '--overlay-font-size',
         'help': "Font size for overlay timer."
     },
     'overlay_color': {
-        'group': 'overlay',
+        'group': 'overlay_opts',
         'default': 'white',
         'type': str,
         'long': '--overlay-color',
         'help': "Text color for overlay (e.g., 'white', '#FF0000')."
     },
     'overlay_bg_color': {
-        'group': 'overlay',
+        'group': 'overlay_opts',
         'default': 'black',
         'type': str,
         'long': '--overlay-bg-color',
         'help': "Background color for overlay."
     },
     'overlay_opacity': {
-        'group': 'overlay',
+        'group': 'overlay_opts',
         'default': 0.8,
         'type': float,
         'long': '--overlay-opacity',
         'help': "Opacity for overlay (0.0 to 1.0)."
+    },
+    'show_presets': {
+        'long': '--show-presets',
+        'action': 'store_true',
+        'default': False,
+        'help': 'Show presets and exit.'
     },
     # Presets - not a CLI arg, but part of config
     'presets': {

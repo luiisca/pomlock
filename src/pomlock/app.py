@@ -4,6 +4,7 @@ import argparse
 import configparser
 import subprocess
 import sys
+import json
 from time import sleep, time
 from pathlib import Path
 import tkinter as tk
@@ -27,6 +28,7 @@ from rich.text import Text
 from constants import (
     DEFAULT_CONFIG_FILE,
     DEFAULT_LOG_FILE,
+    STATE_FILE,
     ARGUMENTS_CONFIG,
     SESSION_TYPE,
 )
@@ -39,12 +41,12 @@ def get_default_settings() -> dict:
     """Generates the default settings dictionary from the single source of truth."""
     defaults = {}
     # Create a nested dictionary for overlay options
-    defaults['overlay'] = {}
+    defaults['overlay_opts'] = {}
     for key, config in ARGUMENTS_CONFIG.items():
         if key.startswith('overlay_'):
             # Strip 'overlay_' prefix for the key inside overlay
             opt_key = key.replace('overlay_', '', 1)
-            defaults['overlay'][opt_key] = config['default']
+            defaults['overlay_opts'][opt_key] = config['default']
         else:
             defaults[key] = config['default']
     return defaults
@@ -61,51 +63,58 @@ class ConditionalCycleColumn(TextColumn):
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__()
-
-        self.bind("<KeyPress>", self._on_key_press)
-        self.mainloop_run = False
-        self.queue = Queue()
         self.crr_cycle = 1
         self.crr_session = 1
         self.total_completed_sessions = 0
 
         self.flags, self.args = self.parse_args()
         self.settings = self.parse_config(self.flags, self.args)
-        self.setup_overlay(self.settings)
-        self.timer_label = self.setup_overlay_timer_label(self.settings)
 
-        Thread(target=self.run_pomodoro, kwargs={
-               "config": self.settings}, daemon=True).start()
+        if self.settings["overlay"]:
+            super().__init__()
 
-        self.update_overlay_window(
-            self.settings,
-            self.queue,
-            self.timer_label
-        )
+            self.bind("<KeyPress>", self._on_key_press)
+            self.mainloop_run = False
+            self.queue = Queue()
+
+            self.setup_overlay(self.settings)
+            self.timer_label = self.setup_overlay_timer_label(self.settings)
+
+            Thread(target=self.run_pomodoro, kwargs={
+                   "config": self.settings}, daemon=True).start()
+
+            self.update_overlay_window(
+                self.settings,
+                self.queue,
+                self.timer_label
+            )
+        else:
+            self.queue = None
+            self.run_pomodoro(self.settings)
 
     def setup_overlay(self, config):
         self.title("Pomlock Break")
         if SESSION_TYPE == "x11":
             self.attributes("-fullscreen", True)
 
-        self.attributes('-alpha', config["overlay"].get('opacity', 0.8))
+        self.attributes('-alpha', config["overlay_opts"].get('opacity', 0.8))
         self.configure(
-            cursor="none", background=config["overlay"].get('bg_color', 'black'))
+            cursor="none", background=config["overlay_opts"].get('bg_color', 'black'))
         self.attributes('-topmost', True)
         self.focus_force()
 
     def setup_overlay_timer_label(self, config):
         try:
             label_font = font.Font(family="Helvetica", size=int(
-                config["overlay"].get('font_size', 48)))
+                config["overlay_opts"].get('font_size', 48)))
         except tk.TclError:
             logger.debug("Helvetica font not found. Using fallback.")
             label_font = font.Font(family="Arial", size=36)
 
         timer_label = tk.Label(self, text="",
-                               fg=config["overlay"].get('color', 'white'),
-                               bg=config["overlay"].get('bg_color', 'black'),
+                               fg=config["overlay_opts"].get('color', 'white'),
+                               bg=config["overlay_opts"].get(
+                                   'bg_color', 'black'),
                                font=label_font)
         timer_label.pack(expand=True)
 
@@ -200,7 +209,7 @@ class App(tk.Tk):
         if not config_file_path.exists():
             config_file_path.parent.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Config file not found at {
-                config_file_path}. Using default settings.")
+                         config_file_path}. Using default settings.")
             return settings
 
         logger.debug(f"Loading settings from {config_file_path}")
@@ -236,13 +245,13 @@ class App(tk.Tk):
 
                     # Place value in the correct part of the settings dict
                     if key.startswith('overlay_'):
-                        settings['overlay'][key.replace(
+                        settings['overlay_opts'][key.replace(
                             'overlay_', '', 1)] = value
                     else:
                         settings[key] = value
                 except (ValueError, configparser.NoOptionError) as e:
                     logger.debug(f"Could not parse '{
-                        key}' from config file: {e}. Using default.")
+                                 key}' from config file: {e}. Using default.")
 
         return settings
 
@@ -262,11 +271,12 @@ class App(tk.Tk):
             was_provided = arg_config.get('long') in flags or arg_config.get(
                 'short') in flags
             was_no_block_input_provided = "--no-block-input" in flags
+            was_no_overlay_provided = "--no-overlay" in flags
 
             if was_provided:
                 value = getattr(args, dest)
                 if dest.startswith('overlay_'):
-                    config['overlay'][dest.replace(
+                    config['overlay_opts'][dest.replace(
                         'overlay_', '', 1)] = value
                 else:
                     config[dest] = value
@@ -274,6 +284,8 @@ class App(tk.Tk):
 
             if was_no_block_input_provided:
                 config['block_input'] = False
+            if was_no_overlay_provided:
+                config['overlay'] = False
 
         # --- Process complex settings like timer presets ---
         if config.get('timer'):
@@ -290,7 +302,7 @@ class App(tk.Tk):
                             'long_break'], config['cycles'] = values
                     else:
                         logger.error(f"Invalid timer format '{
-                            timer_str}'. Expected 4 numbers.")
+                                     timer_str}'. Expected 4 numbers.")
                         sys.exit(1)
                 except ValueError:
                     logger.error(
@@ -304,7 +316,7 @@ class App(tk.Tk):
                 logger.error(f"{key.replace('_', ' ').capitalize()
                                 } must be a positive integer. Exiting.")
                 sys.exit(1)
-        if not (0.0 <= config['overlay'].get('opacity', 0.8) <= 1.0):
+        if not (0.0 <= config['overlay_opts'].get('opacity', 0.8) <= 1.0):
             logger.error(
                 "Overlay opacity must be between 0.0 and 1.0. Exiting."
             )
@@ -376,6 +388,16 @@ class App(tk.Tk):
                         ))
 
                     # pomodoro
+                    pomo_data = {
+                        "action": "pomodoro",
+                        "time": pomo_m,
+                        "start_time": time(),
+                        "crr-cycle": self.crr_cycle,
+                        "total-cycles": cycles,
+                        "crr-session": self.crr_session
+                    }
+                    self._write_state(pomo_data)
+                    self._run_callback(config.get('callback'), pomo_data)
                     self._notify(config['pomo_notify_msg'])
                     logger.info(
                         "Pomodoro started",
@@ -409,15 +431,27 @@ class App(tk.Tk):
                     # break
                     break_m = s_break_m
                     break_s = s_break_s
-                    break_type = "Short break"
+                    break_type = "short_break"
+                    break_type_msg = "Short break"
                     if self.crr_cycle >= cycles:
                         break_m = l_break_m
                         break_s = l_break_s
-                        break_type = "Long break"
+                        break_type = "long_break"
+                        break_type_msg = "Long break"
 
+                    break_data = {
+                        "action": break_type,
+                        "time": break_m,
+                        "start_time": time(),
+                        "crr-cycle": self.crr_cycle,
+                        "total-cycles": cycles,
+                        "crr-session": self.crr_session
+                    }
+                    self._write_state(break_data)
+                    self._run_callback(config.get('callback'), break_data)
                     self._notify(config['break_notify_msg'])
                     logger.info(
-                        f"{break_type} started",
+                        f"{break_type_msg} started",
                         extra={
                             "minutes": break_s,
                         }
@@ -426,7 +460,7 @@ class App(tk.Tk):
                     progress.reset(
                         cycle_job,
                         total=break_s,
-                        description=break_type
+                        description=break_type_msg
                     )
 
                     if config['block_input']:
@@ -438,16 +472,17 @@ class App(tk.Tk):
                         Thread(target=timer, args=(progress,
                                                    session_job, break_s), daemon=True)
                     ]
-                    self.queue.put({
-                        "type": "break",
-                        "msg": break_s
-                    })
+                    if self.queue:
+                        self.queue.put({
+                            "type": "break",
+                            "msg": break_s
+                        })
                     for t in break_threads:
                         t.start()
                     for t in break_threads:
                         t.join()
 
-                    logger.debug(f"{break_type} completed")
+                    logger.debug(f"{break_type_msg} completed")
 
                     if config['block_input']:
                         enable_input_devices()
@@ -495,6 +530,25 @@ class App(tk.Tk):
             except (FileNotFoundError, Exception) as e:
                 logger.error(f"Failed to send notification: {e}")
 
+    def _run_callback(self, callback_cmd, data):
+        if callback_cmd:
+            try:
+                cmd = callback_cmd.split() + [json.dumps(data)]
+                subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            except Exception as e:
+                logger.error(f"Failed to run callback: {e}")
+
+    def _write_state(self, data):
+        try:
+            with open(STATE_FILE, 'w') as f:
+                json.dump(data, f)
+        except IOError as e:
+            logger.error(f"Failed to write state file: {e}")
+
     def _fullscreen(self, event=None):
         if SESSION_TYPE == 'wayland':
             self.attributes("-fullscreen", True)
@@ -502,14 +556,34 @@ class App(tk.Tk):
 
 
 if __name__ == "__main__":
+    if '--show-presets' in sys.argv:
+        # Minimal parsing to find config file
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--config-file", default=str(DEFAULT_CONFIG_FILE))
+        args, _ = parser.parse_known_args()
+
+        # Load config just for presets
+        config = configparser.ConfigParser()
+        defaults = get_default_settings()
+        config.read_dict({'presets': defaults['presets']})
+        if Path(args.config_file).exists():
+            config.read(args.config_file)
+
+        if 'presets' in config:
+            for name, value in config['presets'].items():
+                print(f"{name}: {value}")
+        sys.exit(0)
+
+    app = None
     try:
         app = App()
     except KeyboardInterrupt:
         logger.info("Exiting...")
-        app.destroy()
+        if app:
+            app.destroy()
     except Exception as e:
         logger.error(e)
-        if app.settings.get('block_input'):
+        if app and app.settings.get('block_input'):
             logger.info("Ensuring input devices are enabled on exit...")
             enable_input_devices()
         logger.info("Session ended")
@@ -517,7 +591,9 @@ if __name__ == "__main__":
     # this breaks -h for some reason but ensures devices are enabled
     # if the program is interrupted on the middle of a break
     finally:
-        if app.settings.get('block_input'):
+        if STATE_FILE.exists():
+            STATE_FILE.unlink()
+        if app and app.settings.get('block_input'):
             logger.info("Ensuring input devices are enabled on exit...")
             enable_input_devices()
         logger.info("Session ended")

@@ -11,7 +11,7 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 - **Customizable Overlay**: A full-screen display during breaks with configurable font, colors, and opacity.
 - **Desktop Notifications**: Get native desktop notifications when a break starts.
 - **Activity Logging**: Keeps a simple log of work and break cycles at `~/.local/share/pomlock/pomlock.log`.
-- **Safe Mode**: Run the timer without input blocking using the `--enable-input-during-break` flag.
+- **Safe Mode**: Run the timer without input blocking using the `--no-block-input` flag.
 - **Smart Configuration**: Settings are loaded in a logical order: Defaults < Config File < CLI Arguments. CLI flags always have the final say.
 
 
@@ -82,8 +82,40 @@ pomlock --timer "45 15 30 3"
 pomlock --overlay-color "lime"
 
 # Run without blocking input devices
-pomlock --enable-input-during-break
+pomlock --no-block-input
 ```
+
+## Integrations
+
+`pomlock` can be integrated with other tools like status bars (Waybar, Polybar, etc.) in two ways:
+
+### Polling
+
+On startup, `pomlock` creates a state file at `/tmp/pomlock.json`. This file contains the current timer information, including the action (pomodoro, short_break, long_break), duration, and start time.
+
+You can write a script to poll this JSON file every second to create a custom status bar component. The file is automatically deleted when `pomlock` exits.
+
+**Example State File Content:**
+```json
+{
+    "action": "pomodoro",
+    "time": 1,
+    "start_time": 1756677567.9689746,
+    "crr-cycle": 1,
+    "total-cycles": 4,
+    "crr-session": 1
+}
+```
+
+### Callback
+
+For event-driven integrations, you can use the `--callback` flag to execute a script whenever a pomodoro or break begins. `pomlock` will pass a JSON string with the timer data as the last argument to your script.
+
+```bash
+pomlock --callback /path/to/your/script.sh
+```
+
+Your script will be executed silently in the background to avoid disrupting the main `pomlock` terminal UI.
 
 ## Configuration
 
@@ -100,7 +132,7 @@ pomodoro = 30
 short_break = 5
 long_break = 15
 cycles_before_long = 4
-enable_input_during_break = false
+block_input = true
 
 [overlay]
 # Customize the appearance of the break screen.
@@ -134,7 +166,7 @@ fifty_ten = 50 10 10 1
 ## Safety
 
 - **Automatic Restoration**: Input devices are automatically re-enabled when the program exits cleanly or is interrupted (Ctrl+C).
-- **Non-Blocking Mode**: Use `--enable-input-during-break` for safe, non-blocking monitoring.
+- **Non-Blocking Mode**: Use `--no-block-input` for safe, non-blocking monitoring.
 - **Force Quit**: If the application becomes unresponsive, you can force it to close and restore input by running:
   ```bash
   pkill -f pomlock.py

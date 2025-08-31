@@ -1,2 +1,6 @@
 key.sh
 .env/
+.venv/
+*.pyc
+__pycache__/
+*.log
