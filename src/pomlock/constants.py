@@ -26,8 +26,8 @@ ARGUMENTS_CONFIG = {
         'type': str,
         'short': '-t',
         'long': '--timer',
-        'help': """Set a timer preset or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
-                 Example: --timer "25 5 15 4"."""
+        'help': """Set a timer preset (available: {presets}) or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
+                 Examples: --timer \"25 5 15 4\" or --timer ultradian."""
     },
     'pomodoro': {
         'group': 'pomodoro',

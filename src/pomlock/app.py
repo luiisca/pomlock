@@ -161,6 +161,20 @@ class App(tk.Tk):
             self.destroy()
 
     def parse_args(self):
+        # Pre-parse for config file to load presets for help message
+        pre_parser = argparse.ArgumentParser(add_help=False)
+        pre_parser.add_argument("--config-file", default=str(DEFAULT_CONFIG_FILE))
+        args, _ = pre_parser.parse_known_args()
+
+        config = configparser.ConfigParser()
+        defaults = get_default_settings()
+        config.read_dict({'presets': defaults['presets']})
+        if Path(args.config_file).exists():
+            config.read(args.config_file)
+        
+        presets = config['presets'] if 'presets' in config else {}
+        preset_names = ", ".join(presets.keys())
+
         flags = {
             arg for arg in sys.argv[1:] if arg.startswith('-')}
 
@@ -179,9 +193,13 @@ class App(tk.Tk):
             if 'short' in config:
                 names.append(config['short'])
 
+            help_text = config['help']
+            if '{presets}' in help_text:
+                help_text = help_text.format(presets=preset_names)
+
             # Use **kwargs to unpack the dictionary of arguments into the function call
             kwargs = {'dest': dest,
-                      'help': config['help'], 'default': config['default']}
+                      'help': help_text, 'default': config['default']}
             if 'type' in config:
                 kwargs['type'] = config['type']
             if 'action' in config:
