@@ -326,11 +326,11 @@ class App(tk.Tk):
 
     def run_pomodoro(self, config):
         pomo_m = config['pomodoro']
-        pomo_s = pomo_m * 5
+        pomo_s = pomo_m * 60
         s_break_m = config['short_break']
-        s_break_s = s_break_m * 5
+        s_break_s = s_break_m * 60
         l_break_m = config['long_break']
-        l_break_s = l_break_m * 5
+        l_break_s = l_break_m * 60
         cycles = config['cycles']
 
         progress = Progress(
@@ -373,12 +373,13 @@ class App(tk.Tk):
 
         try:
             def timer(progress: Progress, job: TaskID, duration_s: int):
+                initial_completed = progress.tasks[job].completed
                 start_time = time()
                 while (elapsed := time() - start_time) < duration_s:
-                    progress.update(job, completed=elapsed)
+                    progress.update(job, completed=initial_completed + elapsed)
                     sleep(0.1)
                 # Ensure it finishes at 100%
-                progress.update(job, completed=duration_s)
+                progress.update(job, completed=initial_completed + duration_s)
 
             with Live(progress_table, refresh_per_second=10):
                 while True:
@@ -405,7 +406,7 @@ class App(tk.Tk):
                     logger.info(
                         "Pomodoro started",
                         extra={
-                            "minutes": pomo_s,
+                            "minutes": pomo_m,
                             "crr_cycle": self.crr_cycle,
                             "cycles_total": cycles
                         }
@@ -456,7 +457,7 @@ class App(tk.Tk):
                     logger.info(
                         f"{break_type_msg} started",
                         extra={
-                            "minutes": break_s,
+                            "minutes": break_m,
                         }
                     )
 

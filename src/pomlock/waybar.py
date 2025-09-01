@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 # This path must match the one in pomlock/constants.py
-STATE_FILE = Path("/tmp/pomlock_waybar.json")
+STATE_FILE = Path("/tmp/pomlock.json")
 
 def get_state():
     """Reads the current state from the state file."""
