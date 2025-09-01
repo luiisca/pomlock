@@ -24,6 +24,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from rich.text import Text
+from rich_argparse import RichHelpFormatter
 
 from constants import (
     DEFAULT_CONFIG_FILE,
@@ -165,8 +166,8 @@ class App(tk.Tk):
 
         parser = argparse.ArgumentParser(
             description=f"A Pomodoro timer with input locking. Config: '{
-                DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}'.",
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+                DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}', State: '{STATE_FILE}'",
+            formatter_class=RichHelpFormatter
         )
 
         # --- Dynamically build parser from ARGUMENTS_CONFIG ---
