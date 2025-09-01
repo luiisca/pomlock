@@ -9,9 +9,18 @@ from pathlib import Path
 
 # This path must match the one in pomlock/constants.py
 STATE_FILE = Path("/tmp/pomlock.json")
-
-
 LOG_FILE = Path("/tmp/pomlock_waybar.log")
+
+ICONS = {
+    "default": " pomlock",  # Default icon when no session is active
+    "actions": {
+        "pomodoro": "󰄉",   
+        "short_break": "",
+        "long_break": "" 
+    },
+    "done": "󰄴"
+}
+
 logging.basicConfig(
     filename=LOG_FILE,
     level=logging.DEBUG,
@@ -73,27 +82,22 @@ def print_waybar_json(state):
     if not state or "start_time" not in state:
         # No active timer, show default text
         print(json.dumps(
-            {"text": "pomlock", "tooltip": "Click to start a session"}))
+            {"text": ICONS["default"]}))
         return
 
     elapsed = time.time() - state["start_time"]
     remaining_s = (state["time"] * 60) - elapsed
 
-    if remaining_s <= 0:
-        # Timer is done, show default text. pomlock will send the next state or exit.
-        print(json.dumps({"text": "pomlock", "tooltip": "Session ended"}))
-        return
+    # if remaining_s <= 0:
+    #     # Timer is done, show default text. pomlock will send the next state or exit.
+    #     print(json.dumps({"text": ICONS["done"], "tooltip": "Session ended"}))
+    #     return
 
     mins, secs = divmod(int(remaining_s), 60)
     time_str = f"{mins:02d}:{secs:02d}"
 
     action = state.get("action", "pomodoro")
-    if action == "pomodoro":
-        action_icon = "󰚜"
-    elif action == "short_break":
-        action_icon = "󰽙"
-    else:  # long_break
-        action_icon = "󰽞"
+    action_icon = ICONS["actions"].get(action, ICONS["actions"]["pomodoro"])
 
     cycle_str = ""
     if state.get("crr_cycle") and state.get("total_cycles"):
