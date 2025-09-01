@@ -22,6 +22,49 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 pipx install pomlock
 ```
 
+### Manual Installation (for Wayland users)
+
+If you are on a Wayland system and intend to use `pomlock`'s input blocking features, you will need to manually copy the Polkit policy files. These files grant `pomlock` the necessary permissions to interact with input devices via `libinput` and `evtest`, which require `sudo` privileges.
+
+1.  **Copy Polkit Policy Files**:
+    ```bash
+    sudo cp src/polkit-actions/*.policy /usr/share/polkit-1/actions/
+    ```
+    This step is crucial for `pomlock` to be able to block input devices on Wayland.
+
+2.  **Install Dependencies**: Ensure you have `libinput` and `evtest` installed on your system. These are typically available through your distribution's package manager.
+    *   For Debian/Ubuntu: `sudo apt install libinput-tools evtest`
+    *   For Fedora: `sudo dnf install libinput-utils evtest`
+    *   For Arch Linux: `sudo pacman -S libinput evtest`
+
+3.  **Install `pomlock` (Python package)**:
+    First, ensure you have `uv` installed:
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+    Then, navigate to the `pomlock` project directory and install it in editable mode:
+    ```bash
+    uv pip install -e .
+    ```
+    This will install `pomlock` and all its Python dependencies.
+
+4.  **Waybar Integration (Optional)**:
+    `pomlock` comes with a Waybar script that synchronizes automatically with your pomodoro sessions. You can find it at `src/pomlock/waybar.py`.
+
+    To use it, copy the script to your Waybar scripts directory (e.g., `~/.config/waybar/scripts/`) and configure your Waybar `config` file.
+
+    **Example Waybar Configuration**:
+    ```json
+    "custom/pomodoro": {
+        "exec": "/path/to/your/waybar.py",
+        "interval": 1,
+        "return-type": "json",
+        "on-click": "/path/to/your/waybar.py left",
+        "on-click-right": "/path/to/your/waybar.py right"
+    }
+    ```
+    Remember to replace `/path/to/your/waybar.py` with the actual path where you copied the script.
+
 <!-- ### Arch Linux (AUR) -->
 <!-- ```bash -->
 <!-- yay -S pomlock -->
