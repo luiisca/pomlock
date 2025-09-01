@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
-
 import logging
 from pathlib import Path
 
-from constants import APP_NAME
-from custom_rich_handler import CustomRichHandler
+from .constants import APP_NAME
+from .custom_rich_handler import CustomRichHandler
 
 logger = logging.getLogger(APP_NAME)
 logger.setLevel(logging.DEBUG)

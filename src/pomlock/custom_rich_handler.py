@@ -2,7 +2,8 @@ import logging
 from datetime import datetime
 from rich.logging import RichHandler
 from pathlib import Path
-from log_render import LogRender
+
+from .log_render import LogRender
 
 
 class CustomRichHandler(RichHandler):

@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
-
 import re
 import subprocess
 
-from logger import logger
-from constants import SESSION_TYPE
+from .logger import logger
+from .constants import SESSION_TYPE
 
 # --- XInput Device Control ---
 SLAVE_KBD_PATTERN = re.compile(

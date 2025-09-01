@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import configparser
 import subprocess
@@ -26,15 +24,15 @@ from rich.progress import (
 from rich.text import Text
 from rich_argparse import RichHelpFormatter
 
-from constants import (
+from .constants import (
     DEFAULT_CONFIG_FILE,
     DEFAULT_LOG_FILE,
     STATE_FILE,
     ARGUMENTS_CONFIG,
     SESSION_TYPE,
 )
-from logger import setup_logging, logger
-from input_handler import disable_input_devices, enable_input_devices
+from .logger import setup_logging, logger
+from .input_handler import disable_input_devices, enable_input_devices
 
 
 # --- Configuration Loading ---
@@ -163,7 +161,8 @@ class App(tk.Tk):
     def parse_args(self):
         # Pre-parse for config file to load presets for help message
         pre_parser = argparse.ArgumentParser(add_help=False)
-        pre_parser.add_argument("--config-file", default=str(DEFAULT_CONFIG_FILE))
+        pre_parser.add_argument(
+            "--config-file", default=str(DEFAULT_CONFIG_FILE))
         args, _ = pre_parser.parse_known_args()
 
         config = configparser.ConfigParser()
@@ -171,7 +170,7 @@ class App(tk.Tk):
         config.read_dict({'presets': defaults['presets']})
         if Path(args.config_file).exists():
             config.read(args.config_file)
-        
+
         presets = config['presets'] if 'presets' in config else {}
         preset_names = ", ".join(presets.keys())
 
@@ -578,7 +577,8 @@ class App(tk.Tk):
             return "break"
 
 
-if __name__ == "__main__":
+def main():
+    print("Application starting...")
     if '--show-presets' in sys.argv:
         # Minimal parsing to find config file
         parser = argparse.ArgumentParser(add_help=False)
