@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import json
 import subprocess
 import sys
@@ -8,6 +9,16 @@ from pathlib import Path
 
 # This path must match the one in pomlock/constants.py
 STATE_FILE = Path("/tmp/pomlock.json")
+
+
+LOG_FILE = Path("/tmp/pomlock_waybar.log")
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 def get_state():
     """Reads the current state from the state file."""
@@ -18,36 +29,51 @@ def get_state():
             return {}
     return {}
 
+
 def handle_click(button):
     """Handles left and right clicks from Waybar."""
     if button == "left":
-        # Left click starts a standard pomodoro session
-        subprocess.Popen(["pomlock"])
+        cmd = ["pomlock"]
+        subprocess.Popen(cmd)
+        logger.debug(f"Executed: {' '.join(cmd)}")
     elif button == "right":
-        # Right click opens a rofi menu to choose a preset
+        logger.debug("Opening rofi menu for preset selection.")
         try:
-            # Get presets from pomlock itself
-            presets_str = subprocess.check_output(["pomlock", "--show-presets"]).decode("utf-8").strip()
-            
-            # Use rofi for selection
+            cmd_presets = ["pomlock", "--show-presets"]
+            logger.debug(f"Executing: {' '.join(cmd_presets)}")
+            presets_str = subprocess.check_output(
+                cmd_presets).decode("utf-8").strip()
+
+            cmd_rofi = ["rofi", "-dmenu", "-p", "Select Preset"]
+            logger.debug(f"Executing: {' '.join(cmd_rofi)} with input: {
+                         presets_str[:50]}...")
             selected = subprocess.check_output(
-                ["rofi", "-dmenu", "-p", "Select Preset"],
-                input=presets_str,
-                text=True
-            ).strip()
+                cmd_rofi,
+                input=presets_str.encode('utf-8'),  # rofi expects bytes
+                text=False  # text=True implies input/output are strings, but input needs to be bytes
+            ).decode("utf-8").strip()
 
             if selected:
                 preset_name = selected.split(':')[0].strip()
-                subprocess.Popen(["pomlock", "-t", preset_name])
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            # This can happen if rofi isn't installed or the user cancels the menu.
-            pass
+                cmd_pomlock = ["pomlock", "-t", preset_name]
+                subprocess.Popen(cmd_pomlock)
+                logger.debug(f"Executed: {' '.join(cmd_pomlock)}")
+        except FileNotFoundError as e:
+            logger.error(f"Command not found: {
+                         e.filename}. Is rofi installed and in PATH?")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Subprocess failed with exit code {
+                         e.returncode}: {e.stderr.decode('utf-8')}")
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+
 
 def print_waybar_json(state):
     """Calculates and prints the JSON output for Waybar."""
     if not state or "start_time" not in state:
         # No active timer, show default text
-        print(json.dumps({"text": "Pomlock", "tooltip": "Click to start a session"}))
+        print(json.dumps(
+            {"text": "pomlock", "tooltip": "Click to start a session"}))
         return
 
     elapsed = time.time() - state["start_time"]
@@ -55,7 +81,7 @@ def print_waybar_json(state):
 
     if remaining_s <= 0:
         # Timer is done, show default text. pomlock will send the next state or exit.
-        print(json.dumps({"text": "Pomlock", "tooltip": "Session ended"}))
+        print(json.dumps({"text": "pomlock", "tooltip": "Session ended"}))
         return
 
     mins, secs = divmod(int(remaining_s), 60)
@@ -66,7 +92,7 @@ def print_waybar_json(state):
         action_icon = "󰚜"
     elif action == "short_break":
         action_icon = "󰽙"
-    else: # long_break
+    else:  # long_break
         action_icon = "󰽞"
 
     cycle_str = ""
@@ -80,6 +106,7 @@ def print_waybar_json(state):
         "tooltip": tooltip
     }))
 
+
 def main():
     """Main script entry point."""
     # Check for click handlers passed from Waybar's on-click
@@ -91,6 +118,7 @@ def main():
     state = get_state()
     print_waybar_json(state)
     sys.stdout.flush()
+
 
 if __name__ == "__main__":
     main()
