@@ -335,7 +335,7 @@ class App(tk.Tk):
 
         progress = Progress(
             TextColumn("[bold]{task.description}"),
-            BarColumn(table_column=Column(ratio=1)),
+            BarColumn(bar_width=None, table_column=Column(ratio=1)),
             "[progress.percentage]{task.percentage:>3.0f}%",
             "•",
             ConditionalCycleColumn(""),
@@ -343,7 +343,7 @@ class App(tk.Tk):
             TimeRemainingColumn(),
         )
 
-        progress_table = Table.grid()
+        progress_table = Table.grid(expand=True)
         progress_table.add_row(
             Panel.fit(
                 progress,
