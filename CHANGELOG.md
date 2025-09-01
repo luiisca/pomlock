@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.0](https://github.com/luiisca/pomlock/compare/v1.2.2...v2.0.0) (2025-09-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* add prettier, more functional logging with rich library
+
+### Features
+
+* Add callback and polling support for external scripts ([4cb8ac0](https://github.com/luiisca/pomlock/commit/4cb8ac096e9440d4cd13275b57cf5bb59d04132e))
+* add prettier, more functional logging with rich library ([e169f12](https://github.com/luiisca/pomlock/commit/e169f12ea2f74b139023a49e120d06f424d1a5c7))
+* add wayland support for unpriviliged input blocking ([7339645](https://github.com/luiisca/pomlock/commit/73396457295aa941967b5bedc9151192793045fa))
+
+
+### Bug Fixes
+
+* executable failing with moduel not found errors ([4f7ed72](https://github.com/luiisca/pomlock/commit/4f7ed72fceee8a58375a8ae3514c97fa3650251a))
+* overlay does not go fullscreen on wayland ([550c477](https://github.com/luiisca/pomlock/commit/550c477673f03809b229df7a83aae330bf8aebc2))
+* session progress bar resets after every cycle ([93bf413](https://github.com/luiisca/pomlock/commit/93bf413a34ddab5fbcc507262e8d365928494cb6))
+
 ## [1.2.2](https://github.com/luiisca/pomlock/compare/v1.2.1...v1.2.2) (2025-08-10)
 
 
