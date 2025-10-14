@@ -1,3 +1,4 @@
+from queue import Queue, Empty
 import argparse
 import configparser
 import subprocess
@@ -7,8 +8,8 @@ from time import sleep, time
 from pathlib import Path
 import tkinter as tk
 from tkinter import font
-from queue import Queue
 from threading import Thread
+from functools import reduce
 
 from rich import print, rule
 from rich.live import Live
@@ -28,27 +29,316 @@ from .constants import (
     DEFAULT_CONFIG_FILE,
     DEFAULT_LOG_FILE,
     STATE_FILE,
-    ARGUMENTS_CONFIG,
     SESSION_TYPE,
 )
 from .logger import setup_logging, logger
 from .input_handler import disable_input_devices, enable_input_devices
+from .utils import deep_merge
 
 
 # --- Configuration Loading ---
-def get_default_settings() -> dict:
-    """Generates the default settings dictionary from the single source of truth."""
-    defaults = {}
-    # Create a nested dictionary for overlay options
-    defaults['overlay_opts'] = {}
-    for key, config in ARGUMENTS_CONFIG.items():
-        if key.startswith('overlay_'):
-            # Strip 'overlay_' prefix for the key inside overlay
-            opt_key = key.replace('overlay_', '', 1)
-            defaults['overlay_opts'][opt_key] = config['default']
-        else:
-            defaults[key] = config['default']
-    return defaults
+class Settings(dict):
+    # --- Arguments Single Source of Truth ---
+    # This dictionary drives the entire settings system:
+    # - 'group': Maps the setting to a section in the .config config file.
+    # - 'default': The ultimate fallback value.
+    # - 'type', 'action', 'help': Used to dynamically build the argparse parser.
+    # - 'short', 'long': The command-line flags.
+    DEFAULT_PRESETS = {
+        "standard": "25 5 20 4",
+        "ultradian": "90 20 20 1",
+        "fifty_ten": "50 10 10 1"
+    }
+    CLI_ARGS = {
+        'timer': {
+            'group': 'pomodoro',
+            'default': 'standard',
+            'type': str,
+            'short': '-t',
+            'long': '--timer',
+            'help': """Set a timer preset (available: {presets}) or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
+                 Examples: --timer \"25 5 15 4\" or --timer ultradian."""
+        },
+        'pomodoro': {
+            'group': 'pomodoro',
+            'default': 25,
+            'type': int,
+            'short': '-p',
+            'long': '--pomodoro',
+            'help': "Interval of work time in minutes."
+        },
+        'short_break': {
+            'group': 'pomodoro',
+            'default': 5,
+            'type': int,
+            'short': '-s',
+            'long': '--short-break', 'help': "Short break duration in minutes."
+        },
+        'long_break': {
+            'group': 'pomodoro',
+            'default': 20,
+            'type': int,
+            'short': '-l',
+            'long': '--long-break',
+            'help': "Long break duration in minutes."
+        },
+        'cycles': {
+            'group': 'pomodoro',
+            'default': 4,
+            'type': int,
+            'short': '-c',
+            'long': '--cycles',
+            'help': "Cycles before a long break."
+        },
+        'block_input': {
+            'group': 'pomodoro',
+            'default': True,
+            'long': '--block-input',
+            'action': argparse.BooleanOptionalAction,
+            'help': "Enable/disable keyboard/mouse input during break."
+        },
+        'overlay': {
+            'group': 'pomodoro',
+            'default': True,
+            'long': '--overlay',
+            'action': argparse.BooleanOptionalAction,
+            'help': "Enable/disable overlay break window."
+        },
+        'notify': {
+            'group': 'pomodoro',
+            'default': True,
+            'long': '--notify',
+            'action': argparse.BooleanOptionalAction,
+            'help': "Enable/disable desktop notificatios."
+        },
+        'break_notify_msg': {
+            'group': 'pomodoro',
+            'default': 'Time for a break!',
+            'type': str,
+            'long': '--break-notify-msg',
+            'help': "Message for break notifications."
+        },
+        'long_break_notify_msg': {
+            'group': 'pomodoro',
+            'default': 'Time for a long break!',
+            'type': str,
+            'long': '--long-break-notify-msg',
+            'help': "Message for long break notifications."
+        },
+        'pomo_notify_msg': {
+            'group': 'pomodoro',
+            'default': 'Time for a pomodoro!',
+            'type': str,
+            'long': '--pomo-notify-msg',
+            'help': "Message for pomodoro notifications."
+        },
+        'callback': {
+            'group': 'pomodoro',
+            'default': '',
+            'type': str,
+            'long': '--callback',
+            'help': "Script to call for pomodoro and break events."
+        },
+        # Overlay Settings
+        'overlay_font_size': {
+            'group': 'overlay_opts',
+            'default': 48,
+            'type': int,
+            'long': '--overlay-font-size',
+            'help': "Font size for overlay timer."
+        },
+        'overlay_color': {
+            'group': 'overlay_opts',
+            'default': 'white',
+            'type': str,
+            'long': '--overlay-color',
+            'help': "Text color for overlay (e.g., 'white', '#FF0000')."
+        },
+        'overlay_bg_color': {
+            'group': 'overlay_opts',
+            'default': 'black',
+            'type': str,
+            'long': '--overlay-bg-color',
+            'help': "Background color for overlay."
+        },
+        'overlay_opacity': {
+            'group': 'overlay_opts',
+            'default': 0.8,
+            'type': float,
+            'long': '--overlay-opacity',
+            'help': "Opacity for overlay (0.0 to 1.0)."
+        },
+        'show_presets': {
+            'long': '--show-presets',
+            'action': 'store_true',
+            'default': False,
+            'help': 'Show presets and exit.'
+        },
+        'config_file': {
+            'long': '--config-file',
+            'type': str,
+            'default': DEFAULT_CONFIG_FILE,
+            'help': 'Path to config file.'
+        },
+        'log_file': {
+            'long': '--log-file',
+            'type': str,
+            'default': DEFAULT_LOG_FILE,
+            'help': 'Path to log file.'
+        },
+        'verbose': {
+            'long': '--verbose',
+            'action': 'store_true',
+            'default': False,
+            'help': 'Enable verbose logging.'
+        }
+    }
+
+    def __init__(self):
+        settings = reduce(
+            deep_merge, [self.get_defaults(), self.get_conf(), self.get_cli()]
+        )
+
+        if settings.get('timer'):
+            timer_val = settings['timer'].lower()
+            timer_str = settings['presets'].get(
+                timer_val, timer_val if ' ' in timer_val else None
+            )
+
+            if timer_str:
+                logger.debug(f"Applying timer setting: '{timer_str}'")
+                try:
+                    values = [int(v) for v in timer_str.split()]
+                    if len(values) == 4:
+                        settings['pomodoro'], settings['short_break'], settings[
+                            'long_break'], settings['cycles'] = values
+                    else:
+                        logger.error(f"Invalid timer format '{
+                                     timer_str}'. Expected 4 numbers.")
+                        sys.exit(1)
+                except ValueError:
+                    logger.error(
+                        f"Invalid numbers in timer string '{timer_str}'.")
+
+        for key in ['pomodoro', 'short_break', 'long_break', 'cycles']:
+            if not (isinstance(settings.get(key), int) and settings.get(key, 0) > 0):
+                logger.error(f"{key.replace('_', ' ').capitalize()
+                                } must be a positive integer. Exiting.")
+                sys.exit(1)
+        if not (0.0 <= float(settings['overlay_opacity']) <= 1.0):
+            logger.error(
+                "Overlay opacity must be between 0.0 and 1.0. Exiting."
+            )
+            sys.exit(1)
+        super().__init__(settings)
+        logger.debug(f"Effective settings: {self}")
+
+    def get_defaults(self) -> dict:
+        """
+        Generates the default settings dictionary from the single source of truth.
+        """
+        settings = {
+            'presets': self.DEFAULT_PRESETS
+        }
+        for key, arg_config in self.CLI_ARGS.items():
+            settings[key] = arg_config['default']
+        return settings
+
+    def get_conf(self):
+        """
+        Loads settings from a .config file, using ARGUMENTS_CONFIG for defaults.
+        """
+        settings = {}
+        config_file = Path(self.get_config_file())
+        if not config_file.exists():
+            config_file.parent.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"Config file not found at {
+                         config_file}. Using default settings.")
+            return {}
+
+        logger.debug(f"Loading settings from {config_file}")
+        conf = configparser.ConfigParser()
+        try:
+            conf.read(config_file)
+        except configparser.Error as e:
+            logger.error(f"Error reading config file {
+                         config_file}: {e}. Using defaults.")
+            return {}
+
+        for sect_name, sect_dict in conf.items():
+            if sect_name == 'DEFAULT':
+                continue
+            if sect_name == 'overlay':
+                for key, value in dict(sect_dict).items():
+                    settings[f'overlay_{key}'] = value
+            elif sect_name == 'presets':
+                settings['presets'] = dict(sect_dict)
+            else:
+                deep_merge(settings, dict(sect_dict))
+        return settings
+
+    def get_cli(self):
+        settings = {}
+        preset_names = self.get_presets()
+        parser = argparse.ArgumentParser(
+            description=f"A Pomodoro timer with input locking. Config: '{
+                DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}', State: '{STATE_FILE}'",
+            formatter_class=RichHelpFormatter
+        )
+        flags = {
+            arg for arg in sys.argv[1:] if arg.startswith('-')
+        }
+
+        # --- Dynamically build parser from ARGUMENTS_CONFIG ---
+        for key, arg_config in self.CLI_ARGS.items():
+            if 'long' not in arg_config:
+                continue
+
+            names = [arg_config['long']]
+            if 'short' in arg_config:
+                names.append(arg_config['short'])
+
+            help_text = arg_config['help']
+            if '{presets}' in help_text:
+                help_text = help_text.format(presets=preset_names)
+
+            # Use **kwargs to unpack the dictionary of arguments into the function call
+            kwargs = {
+                'dest': key,
+                'help': help_text,
+                'default': arg_config['default']
+            }
+            if 'type' in arg_config:
+                kwargs['type'] = arg_config['type']
+            if 'action' in arg_config:
+                kwargs['action'] = arg_config['action']
+
+            parser.add_argument(*names, **kwargs)
+
+        parsed_args = vars(parser.parse_args())
+        for key, value in parsed_args.items():
+            # only update settings if the user has specified a non-default arg value
+            if value != parser.get_default(key):
+                settings[key] = value
+
+        return settings
+
+    def get_presets(self):
+        config_file = self.get_config_file()
+        conf = configparser.ConfigParser()
+        conf.read_dict({'presets': self.DEFAULT_PRESETS})
+        if Path(config_file).exists():
+            conf.read(config_file)
+        preset_names = ", ".join(conf['presets'].keys())
+        return preset_names
+
+    def get_config_file(self):
+        pre_parser = argparse.ArgumentParser(add_help=False)
+        pre_parser.add_argument(
+            "--config-file", default=str(DEFAULT_CONFIG_FILE)
+        )
+        args, _ = pre_parser.parse_known_args()
+        return args.config_file
 
 
 class ConditionalCycleColumn(TextColumn):
@@ -61,288 +351,103 @@ class ConditionalCycleColumn(TextColumn):
 
 
 class App(tk.Tk):
-    def __init__(self):
-        self.crr_cycle = 1
-        self.crr_session = 1
-        self.total_completed_sessions = 0
+    def __init__(self, settings: dict, queue: Queue):
+        super().__init__()
+        self.settings = settings
+        self.queue = queue
 
-        self.flags, self.args = self.parse_args()
-        self.settings = self.parse_config(self.flags, self.args)
+        self.setup_overlay()
+        self.timer_label = self.setup_overlay_timer_label()
+        self.bind("<KeyPress>", self._on_key_press)
 
-        if self.settings["overlay"]:
-            super().__init__()
+        self.process_queue()
 
-            self.bind("<KeyPress>", self._on_key_press)
-            self.mainloop_run = False
-            self.queue = Queue()
-
-            self.setup_overlay(self.settings)
-            self.timer_label = self.setup_overlay_timer_label(self.settings)
-
-            Thread(target=self.run_pomodoro, kwargs={
-                   "config": self.settings}, daemon=True).start()
-
-            self.update_overlay_window(
-                self.settings,
-                self.queue,
-                self.timer_label
-            )
-        else:
-            self.queue = None
-            self.run_pomodoro(self.settings)
-
-    def setup_overlay(self, config):
+    def setup_overlay(self):
         self.title("Pomlock Break")
         if SESSION_TYPE == "x11":
             self.attributes("-fullscreen", True)
-
-        self.attributes('-alpha', config["overlay_opts"].get('opacity', 0.8))
-        self.configure(
-            cursor="none", background=config["overlay_opts"].get('bg_color', 'black'))
+        self.attributes(
+            '-alpha', self.settings.get('overlay_opacity', 0.8))
+        self.configure(cursor="none", background=self.settings.get(
+            'overlay_bg_color', 'black'))
         self.attributes('-topmost', True)
         self.focus_force()
+        self.withdraw()  # Start hidden
 
-    def setup_overlay_timer_label(self, config):
+    def setup_overlay_timer_label(self):
         try:
             label_font = font.Font(family="Helvetica", size=int(
-                config["overlay_opts"].get('font_size', 48)))
+                self.settings.get('overlay_font_size', 48)))
         except tk.TclError:
             logger.debug("Helvetica font not found. Using fallback.")
             label_font = font.Font(family="Arial", size=36)
 
         timer_label = tk.Label(self, text="",
-                               fg=config["overlay_opts"].get('color', 'white'),
-                               bg=config["overlay_opts"].get(
-                                   'bg_color', 'black'),
+                               fg=self.settings.get(
+                                   'overlay_color', 'white'),
+                               bg=self.settings.get(
+                                   'overlay_bg_color', 'black'),
                                font=label_font)
         timer_label.pack(expand=True)
-
         return timer_label
 
-    def update_overlay_window(self, config, queue, timer_label):
+    def process_queue(self):
+        """ Checks the queue for messages from the worker thread. """
         try:
-            queue_item = self.queue.get()
-
-            if queue_item["type"] == "exit":
+            item = self.queue.get_nowait()
+            if item["type"] == "exit":
                 self.destroy()
                 return
-
-            if queue_item["type"] == "break":
-                queue.task_done()
-                duration_s = queue_item["msg"]
-
-                start_time = time()
-
-                def update_overlay_timer():
-                    remaining_s = duration_s - (time() - start_time)
-                    if remaining_s <= 0:
-                        self.withdraw()
-                        self.update_overlay_window(config, queue, timer_label)
-                        return
-
-                    mins, secs = divmod(int(remaining_s), 60)
-                    timer_label.config(text=f"BREAK TIME\n{
-                                       mins:02d}:{secs:02d}")
-                    self.after(1000, update_overlay_timer)
-
-                update_overlay_timer()
-                if self.mainloop_run:
-                    self.deiconify()
-                    self.after(10, self._fullscreen)
-                else:
-                    self.mainloop_run = True
-                    self.after(10, self._fullscreen)
-                    self.mainloop()
-
+            if item["type"] == "break":
+                self.start_break_timer(item["duration_s"])
         except KeyboardInterrupt:
             logger.info("Exiting...")
             self.destroy()
+        except Empty:
+            pass
+        finally:
+            self.after(100, self.process_queue)
 
-    def parse_args(self):
-        # Pre-parse for config file to load presets for help message
-        pre_parser = argparse.ArgumentParser(add_help=False)
-        pre_parser.add_argument(
-            "--config-file", default=str(DEFAULT_CONFIG_FILE))
-        args, _ = pre_parser.parse_known_args()
+    def start_break_timer(self, duration_s: int):
+        self.deiconify()  # Show the window
+        self.after(50, self._fullscreen)
 
-        config = configparser.ConfigParser()
-        defaults = get_default_settings()
-        config.read_dict({'presets': defaults['presets']})
-        if Path(args.config_file).exists():
-            config.read(args.config_file)
+        start_time = time()
 
-        presets = config['presets'] if 'presets' in config else {}
-        preset_names = ", ".join(presets.keys())
+        def update_timer():
+            remaining_s = duration_s - (time() - start_time)
+            if remaining_s <= 0:
+                self.withdraw()  # Hide window when done
+                return
 
-        flags = {
-            arg for arg in sys.argv[1:] if arg.startswith('-')}
+            mins, secs = divmod(int(remaining_s), 60)
+            self.timer_label.config(text=f"BREAK TIME\n{mins:02d}:{secs:02d}")
+            self.after(1000, update_timer)
 
-        parser = argparse.ArgumentParser(
-            description=f"A Pomodoro timer with input locking. Config: '{
-                DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}', State: '{STATE_FILE}'",
-            formatter_class=RichHelpFormatter
-        )
+        update_timer()
 
-        # --- Dynamically build parser from ARGUMENTS_CONFIG ---
-        for dest, config in ARGUMENTS_CONFIG.items():
-            if 'long' not in config:
-                continue  # Skip config-only entries like 'presets'
+    def _on_key_press(self, event):
+        if event.keysym.lower() in ['escape', 'q']:
+            logger.debug("Overlay closed by user.")
+            self.destroy()
 
-            names = [config['long']]
-            if 'short' in config:
-                names.append(config['short'])
+    def _fullscreen(self, event=None):
+        if SESSION_TYPE == 'wayland':
+            self.attributes("-fullscreen", True)
+            return "break"
 
-            help_text = config['help']
-            if '{presets}' in help_text:
-                help_text = help_text.format(presets=preset_names)
 
-            # Use **kwargs to unpack the dictionary of arguments into the function call
-            kwargs = {'dest': dest,
-                      'help': help_text, 'default': config['default']}
-            if 'type' in config:
-                kwargs['type'] = config['type']
-            if 'action' in config:
-                kwargs['action'] = config['action']
+class PomodoroController:
+    def __init__(self, settings: dict, queue: Queue = None):
+        self.settings = settings
+        self.queue = queue  # Can be None if no overlay
+        self.crr_cycle = 1
+        self.crr_session = 1
+        self.total_completed_sessions = 0
 
-            # Default is not set here so we can reliably detect if user provided the arg
-            parser.add_argument(*names, **kwargs)
-
-        # Add arguments not in the main config system
-        parser.add_argument("--config-file", type=str,
-                            default=str(DEFAULT_CONFIG_FILE), help="Path to settings file.")
-        parser.add_argument("--log-file", type=str,
-                            default=str(DEFAULT_LOG_FILE), help="Path to log file.")
-        parser.add_argument("--verbose", action="store_true",
-                            help="Enable verbose output to console.")
-
-        return flags, parser.parse_args()
-
-    def load_configuration(self, args):
-        """
-        Loads settings from a .config file, using ARGUMENTS_CONFIG for defaults.
-        """
-        settings = get_default_settings()
-        config_file_path = Path(args.config_file)
-
-        if not config_file_path.exists():
-            config_file_path.parent.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Config file not found at {
-                         config_file_path}. Using default settings.")
-            return settings
-
-        logger.debug(f"Loading settings from {config_file_path}")
-        parser = configparser.ConfigParser()
-        try:
-            parser.read(config_file_path)
-        except configparser.Error as e:
-            logger.error(f"Error reading config file {
-                         config_file_path}: {e}. Using defaults.")
-            return settings
-
-        # override default settings with config file
-        for key, arg_config in ARGUMENTS_CONFIG.items():
-            group = arg_config.get('group')
-            if not group or group not in parser:
-                continue
-
-            if group == 'presets':
-                for name, value in parser['presets'].items():
-                    settings['presets'][name.lower()] = value
-            elif key in parser[group]:
-                # Determine the correct 'get' method based on the defined type
-                value_type = arg_config.get('type', str)
-                try:
-                    if value_type == int:
-                        value = parser[group].getint(key)
-                    elif value_type == float:
-                        value = parser[group].getfloat(key)
-                    elif arg_config.get('action') == argparse.BooleanOptionalAction:
-                        value = parser[group].getboolean(key)
-                    else:
-                        value = parser[group].get(key)
-
-                    # Place value in the correct part of the settings dict
-                    if key.startswith('overlay_'):
-                        settings['overlay_opts'][key.replace(
-                            'overlay_', '', 1)] = value
-                    else:
-                        settings[key] = value
-                except (ValueError, configparser.NoOptionError) as e:
-                    logger.debug(f"Could not parse '{
-                                 key}' from config file: {e}. Using default.")
-
-        return settings
-
-    def parse_config(self, flags, args):
-        # --- Settings layering: Defaults -> Config File -> CLI Args ---
-        # 1. Load settings from config file (will include defaults where applicable)
-        config = self.load_configuration(args)
-
-        # 2. Setup logging
-        setup_logging(args.log_file, args.verbose)
-        logger.debug(f"User provided flags: {flags}")
-        logger.debug(f"Config after loading file: {config}")
-
-        # 3. Override with any explicit CLI arguments
-        for dest, arg_config in ARGUMENTS_CONFIG.items():
-            # Check if any long or short flag was passed by the user
-            was_provided = arg_config.get('long') in flags or arg_config.get(
-                'short') in flags
-            was_no_block_input_provided = "--no-block-input" in flags
-            was_no_overlay_provided = "--no-overlay" in flags
-
-            if was_provided:
-                value = getattr(args, dest)
-                if dest.startswith('overlay_'):
-                    config['overlay_opts'][dest.replace(
-                        'overlay_', '', 1)] = value
-                else:
-                    config[dest] = value
-                logger.debug(f"CLI override: '{dest}' set to '{value}'")
-
-            if was_no_block_input_provided:
-                config['block_input'] = False
-            if was_no_overlay_provided:
-                config['overlay'] = False
-
-        # --- Process complex settings like timer presets ---
-        if config.get('timer'):
-            timer_val = config['timer'].lower()
-            timer_str = config['presets'].get(
-                timer_val, timer_val if ' ' in timer_val else None)
-
-            if timer_str:
-                logger.debug(f"Applying timer setting: '{timer_str}'")
-                try:
-                    values = [int(v) for v in timer_str.split()]
-                    if len(values) == 4:
-                        config['pomodoro'], config['short_break'], config[
-                            'long_break'], config['cycles'] = values
-                    else:
-                        logger.error(f"Invalid timer format '{
-                                     timer_str}'. Expected 4 numbers.")
-                        sys.exit(1)
-                except ValueError:
-                    logger.error(
-                        f"Invalid numbers in timer string '{timer_str}'.")
-
-        logger.debug(f"Effective settings: {config}")
-
-        # --- Final Validation ---
-        for key in ['pomodoro', 'short_break', 'long_break', 'cycles']:
-            if not (isinstance(config.get(key), int) and config.get(key, 0) > 0):
-                logger.error(f"{key.replace('_', ' ').capitalize()
-                                } must be a positive integer. Exiting.")
-                sys.exit(1)
-        if not (0.0 <= config['overlay_opts'].get('opacity', 0.8) <= 1.0):
-            logger.error(
-                "Overlay opacity must be between 0.0 and 1.0. Exiting."
-            )
-            sys.exit(1)
-
-        return config
-
-    def run_pomodoro(self, config):
+    def run(self):
+        """ The main pomodoro timer loop. """
+        config = self.settings
         pomo_m = config['pomodoro']
         pomo_s = pomo_m * 60
         s_break_m = config['short_break']
@@ -399,17 +504,15 @@ class App(tk.Tk):
                 # Ensure it finishes at 100%
                 progress.update(job, completed=initial_completed + duration_s)
 
-            with Live(progress_table, refresh_per_second=10):
+            with Live(progress_table, refresh_per_second=10) as live:
                 while True:
                     if self.crr_cycle == 1:
-                        logger.debug(
-                            f"Session #{self.crr_session} started"
+                        logger.debug(f"Session #{self.crr_session} started")
+                        live.console.print(
+                            rule.Rule(f"Session #{self.crr_session} started")
                         )
-                        print(rule.Rule(
-                            f"Session #{self.crr_session} started"
-                        ))
 
-                    # pomodoro
+                    # --- Pomodoro ---
                     pomo_data = {
                         "action": "pomodoro",
                         "time": pomo_m,
@@ -435,7 +538,6 @@ class App(tk.Tk):
                         total=pomo_s,
                         description="Pomodoro"
                     )
-
                     pomo_threads = [
                         Thread(target=timer, args=(progress,
                                                    cycle_job, pomo_s), daemon=True),
@@ -450,7 +552,7 @@ class App(tk.Tk):
                     logger.debug(
                         f"Pomodoro {self.crr_cycle}/{cycles} completed")
 
-                    # break
+                    # --- Break ---
                     break_m = s_break_m
                     break_s = s_break_s
                     break_type = "short_break"
@@ -488,27 +590,27 @@ class App(tk.Tk):
                     if config['block_input']:
                         disable_input_devices()
 
+                    if self.queue:
+                        self.queue.put(
+                            {"type": "break", "duration_s": break_s}
+                        )
+
                     break_threads = [
                         Thread(target=timer, args=(progress,
                                                    cycle_job, break_s), daemon=True),
                         Thread(target=timer, args=(progress,
                                                    session_job, break_s), daemon=True)
                     ]
-                    if self.queue:
-                        self.queue.put({
-                            "type": "break",
-                            "msg": break_s
-                        })
                     for t in break_threads:
                         t.start()
                     for t in break_threads:
                         t.join()
 
                     logger.debug(f"{break_type_msg} completed")
-
                     if config['block_input']:
                         enable_input_devices()
 
+                    # --- Cycle/Session Management ---
                     # session completed
                     if self.crr_cycle >= cycles:
                         progress.reset(
@@ -522,9 +624,7 @@ class App(tk.Tk):
                             crr_cycle=1,
                             cycles_total=cycles
                         )
-
-                        logger.debug(
-                            f"Session #{self.crr_session} completed")
+                        logger.debug(f"Session #{self.crr_session} completed")
                         self.crr_session += 1
                         self.total_completed_sessions += 1
                         self.crr_cycle = 1
@@ -538,17 +638,15 @@ class App(tk.Tk):
 
         except Exception as e:
             logger.error(f"{e}")
+            # Ensure we signal the GUI to exit on error
+            if self.queue:
+                self.queue.put({"type": "exit"})
 
-    def _on_key_press(self, event):
-        if event.keysym.lower() in ['escape', 'q']:
-            logger.debug("Overlay closed by user.")
-            self.destroy()
-
+    # Helper methods (moved from App)
     def _notify(self, msg):
         if self.settings.get('notify', False):
             try:
-                subprocess.Popen(
-                    ['notify-send', msg])
+                subprocess.Popen(['notify-send', msg])
             except (FileNotFoundError, Exception) as e:
                 logger.error(f"Failed to send notification: {e}")
 
@@ -556,11 +654,8 @@ class App(tk.Tk):
         if callback_cmd:
             try:
                 cmd = callback_cmd.split() + [json.dumps(data)]
-                subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
             except Exception as e:
                 logger.error(f"Failed to run callback: {e}")
 
@@ -571,48 +666,50 @@ class App(tk.Tk):
         except IOError as e:
             logger.error(f"Failed to write state file: {e}")
 
-    def _fullscreen(self, event=None):
-        if SESSION_TYPE == 'wayland':
-            self.attributes("-fullscreen", True)
-            return "break"
-
 
 def main():
-    print("Application starting...")
+    settings = Settings()
+    app = None
     if '--show-presets' in sys.argv:
-        # Minimal parsing to find config file
-        parser = argparse.ArgumentParser(add_help=False)
-        parser.add_argument("--config-file", default=str(DEFAULT_CONFIG_FILE))
-        args, _ = parser.parse_known_args()
-
-        # Load config just for presets
-        config = configparser.ConfigParser()
-        defaults = get_default_settings()
-        config.read_dict({'presets': defaults['presets']})
-        if Path(args.config_file).exists():
-            config.read(args.config_file)
-
-        if 'presets' in config:
-            for name, value in config['presets'].items():
+        if 'presets' in settings:
+            for name, value in settings.get('presets').items():
                 print(f"{name}: {value}")
+        else:
+            print("No presets found.")
         sys.exit(0)
 
-    app = None
     try:
-        app = App()
+        setup_logging(settings.get('log_file'), settings.get('verbose'))
+        logger.debug(f"Config after loading file: {settings}")
+
+        if settings.get('overlay'):
+            # With GUI
+            gui_queue = Queue()
+            controller = PomodoroController(settings, gui_queue)
+
+            # Start the pomodoro logic in a worker thread
+            worker_thread = Thread(target=controller.run, daemon=True)
+            worker_thread.start()
+
+            # Create and run the GUI in the main thread
+            app = App(settings, gui_queue)
+            app.mainloop()
+        else:
+            # Without GUI
+            controller = PomodoroController(settings, None)
+            controller.run()
+
     except KeyboardInterrupt:
         logger.info("Exiting...")
         if app:
             app.destroy()
     except Exception as e:
-        logger.error(e)
+        logger.error(e, exc_info=True)  # Log traceback for better debugging
         if app and app.settings.get('block_input'):
             logger.info("Ensuring input devices are enabled on exit...")
             enable_input_devices()
         logger.info("Session ended")
 
-    # this breaks -h for some reason but ensures devices are enabled
-    # if the program is interrupted on the middle of a break
     finally:
         if STATE_FILE.exists():
             STATE_FILE.unlink()
