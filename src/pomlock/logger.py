@@ -10,15 +10,23 @@ logger.setLevel(logging.DEBUG)
 
 class ExtraDataFormatter(logging.Formatter):
     def format(self, record):
-        s = super().format(record)
-        extra = {k: v for k, v in record.__dict__.items(
-        ) if k not in logging.LogRecord.__dict__ and k not in ['message', 'asctime']}
+        log_parts = [
+            super().format(record)
+        ]
 
+        extra_items = []
+        if hasattr(record, 'activity'):
+            extra_items.append(f"activity:{record.activity}")
         if hasattr(record, 'crr_cycle') and hasattr(record, 'cycles_total'):
-            s += f" - Cycle: {record.crr_cycle}/{record.cycles_total}"
+            extra_items.append(
+                f"cycle:{record.crr_cycle}/{record.cycles_total}")
         if hasattr(record, 'minutes'):
-            s += f" - Timer: {record.minutes} minutes"
-        return s
+            extra_items.append(f"timer:{record.minutes}m")
+
+        if extra_items:
+            log_parts.append(" | ".join(extra_items))
+
+        return " | ".join(log_parts)
 
 
 def setup_logging(log_file_path_str: str, verbose: bool):
@@ -37,7 +45,7 @@ def setup_logging(log_file_path_str: str, verbose: bool):
     rh.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     fh_formatter = ExtraDataFormatter(
-        '%(asctime)s - %(levelname)s - %(message)s'
+        '%(asctime)s | %(levelname)s | %(message)s'
     )
     fh.setFormatter(fh_formatter)
 

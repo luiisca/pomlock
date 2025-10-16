@@ -1,3 +1,4 @@
+from rich.console import Console, ConsoleOptions, RenderResult
 from queue import Queue, Empty
 import argparse
 import configparser
@@ -89,6 +90,14 @@ class Settings(dict):
             'short': '-c',
             'long': '--cycles',
             'help': "Cycles before a long break."
+        },
+        'activity': {
+            'group': 'pomodoro',
+            'default': 'other',
+            'type': str,
+            'short': '-a',
+            'long': '--activity',
+            'help': "Name of the activity for the session (e.g., 'work', 'study', 'read')."
         },
         'block_input': {
             'group': 'pomodoro',
@@ -341,6 +350,26 @@ class Settings(dict):
         return args.config_file
 
 
+class SessionData:
+    def __init__(self, activity, completed_sessions):
+        self.activity = activity
+        self.completed_sessions = completed_sessions
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        session_data = Table.grid(padding=1)
+        session_data.add_column(style="bold", justify="right")
+        session_data.add_column()
+        session_data.add_row("Activity:", f" [cyan]{self.activity}[/cyan]")
+        session_data.add_row("Sessions:", f" [cyan]{
+                             self.completed_sessions}[/cyan]")
+        session_data.add_row("Time Today:", " [cyan]0h 0m[/cyan]")
+        yield Panel(
+            session_data,
+            border_style="cyan",
+            padding=(1, 2),
+        )
+
+
 class ConditionalCycleColumn(TextColumn):
     """A column that only displays cycle information if it's available."""
 
@@ -466,21 +495,20 @@ class PomodoroController:
             TimeRemainingColumn(),
         )
 
-        progress_table = Table.grid(expand=True)
-        progress_table.add_row(
+        session_data = SessionData(config.get(
+            'activity', 'N/A'), self.total_completed_sessions)
+
+        layout_table = Table.grid(expand=True)
+        layout_table.add_column(ratio=2, vertical="middle")
+        layout_table.add_column(ratio=1, vertical="middle")
+        layout_table.add_row(
             Panel.fit(
                 progress,
                 border_style="green",
-                padding=(1, 2),
+                padding=(1, 2)
             ),
-            # Panel.fit(
-            #     Group(
-            #         Text("[bold]Pomodoro Timer"),
-            #         Text("[bold]Session Timer")
-            #     ), border_style="green", padding=(1, 2)
-            # ),
+            session_data
         )
-
         total_time_s = (((pomo_m + s_break_m) * cycles) +
                         (l_break_m - s_break_m)) * 60
         session_job = progress.add_task(
@@ -504,7 +532,7 @@ class PomodoroController:
                 # Ensure it finishes at 100%
                 progress.update(job, completed=initial_completed + duration_s)
 
-            with Live(progress_table, refresh_per_second=10) as live:
+            with Live(layout_table, refresh_per_second=10) as live:
                 while True:
                     if self.crr_cycle == 1:
                         logger.debug(f"Session #{self.crr_session} started")
@@ -529,7 +557,8 @@ class PomodoroController:
                         extra={
                             "minutes": pomo_m,
                             "crr_cycle": self.crr_cycle,
-                            "cycles_total": cycles
+                            "cycles_total": cycles,
+                            "activity": config.get('activity')
                         }
                     )
 
@@ -578,6 +607,7 @@ class PomodoroController:
                         f"{break_type_msg} started",
                         extra={
                             "minutes": break_m,
+                            "activity": config.get('activity')
                         }
                     )
 
@@ -627,6 +657,7 @@ class PomodoroController:
                         logger.debug(f"Session #{self.crr_session} completed")
                         self.crr_session += 1
                         self.total_completed_sessions += 1
+                        session_data.completed_sessions = self.total_completed_sessions
                         self.crr_cycle = 1
                     else:
                         # cycle completed
