@@ -567,7 +567,7 @@ class PomodoroController:
                     }
                     self._write_state(pomo_data)
                     self._run_callback(config.get('callback'), pomo_data)
-                    self._notify(config['pomo_notify_msg'])
+                    self._notify(config['pomo_notify_msg'], config.get('activity'))
                     logger.info(
                         "Pomodoro started",
                         extra={
@@ -618,7 +618,7 @@ class PomodoroController:
                     }
                     self._write_state(break_data)
                     self._run_callback(config.get('callback'), break_data)
-                    self._notify(config['break_notify_msg'])
+                    self._notify(config['break_notify_msg'], config.get('activity'))
                     logger.info(
                         f"{break_type_msg} started",
                         extra={
@@ -690,9 +690,11 @@ class PomodoroController:
                 self.queue.put({"type": "exit"})
 
     # Helper methods (moved from App)
-    def _notify(self, msg):
+    def _notify(self, msg, activity=None):
         if self.settings.get('notify', False):
             try:
+                if activity:
+                    msg = f"{msg} - {activity}"
                 subprocess.Popen(['notify-send', msg])
             except (FileNotFoundError, Exception) as e:
                 logger.error(f"Failed to send notification: {e}")
