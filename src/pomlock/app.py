@@ -567,7 +567,8 @@ class PomodoroController:
                     }
                     self._write_state(pomo_data)
                     self._run_callback(config.get('callback'), pomo_data)
-                    self._notify(config['pomo_notify_msg'], config.get('activity'))
+                    self._notify(config['pomo_notify_msg'],
+                                 config.get('activity'))
                     logger.info(
                         "Pomodoro started",
                         extra={
@@ -618,7 +619,8 @@ class PomodoroController:
                     }
                     self._write_state(break_data)
                     self._run_callback(config.get('callback'), break_data)
-                    self._notify(config['break_notify_msg'], config.get('activity'))
+                    self._notify(config['break_notify_msg'],
+                                 config.get('activity'))
                     logger.info(
                         f"{break_type_msg} started",
                         extra={
