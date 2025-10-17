@@ -50,6 +50,9 @@ class Settings(dict):
         "ultradian": "90 20 20 1",
         "fifty_ten": "50 10 10 1"
     }
+    DEFAULT_ACTIVITIES = {
+        "available": "other"
+    }
     CLI_ARGS = {
         'timer': {
             'group': 'pomodoro',
@@ -97,7 +100,7 @@ class Settings(dict):
             'type': str,
             'short': '-a',
             'long': '--activity',
-            'help': "Name of the activity for the session (e.g., 'work', 'study', 'read')."
+            'help': "Name of the activity for the session (available: {activities})."
         },
         'block_input': {
             'group': 'pomodoro',
@@ -183,6 +186,12 @@ class Settings(dict):
             'default': False,
             'help': 'Show presets and exit.'
         },
+        'show_activities': {
+            'long': '--show-activities',
+            'action': 'store_true',
+            'default': False,
+            'help': 'Show activities and exit.'
+        },
         'config_file': {
             'long': '--config-file',
             'type': str,
@@ -204,8 +213,32 @@ class Settings(dict):
     }
 
     def __init__(self):
+        self.config_file = self.get_config_file()
+        self.conf = configparser.ConfigParser()
+        self.conf.read_dict({
+            'presets': self.DEFAULT_PRESETS,
+            'activities': self.DEFAULT_ACTIVITIES
+        })
+        config_file = Path(self.config_file)
+        if not config_file.exists():
+            config_file.parent.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"Config file not found at {
+                         config_file}. Using default settings.")
+        else:
+            try:
+                logger.debug(f"Loading settings from {config_file}")
+                self.conf.read(config_file)
+            except configparser.Error as e:
+                logger.error(f"Error reading config file {
+                             config_file}: {e}. Using defaults.")
+        self.conf = dict(self.conf)
+
         settings = reduce(
-            deep_merge, [self.get_defaults(), self.get_conf(), self.get_cli()]
+            deep_merge, [
+                self.get_defaults(),
+                self.get_conf(),
+                self.get_cli()
+            ]
         )
 
         if settings.get('timer'):
@@ -247,7 +280,8 @@ class Settings(dict):
         Generates the default settings dictionary from the single source of truth.
         """
         settings = {
-            'presets': self.DEFAULT_PRESETS
+            'presets': self.DEFAULT_PRESETS,
+            'activities': self.DEFAULT_ACTIVITIES
         }
         for key, arg_config in self.CLI_ARGS.items():
             settings[key] = arg_config['default']
@@ -258,37 +292,26 @@ class Settings(dict):
         Loads settings from a .config file, using ARGUMENTS_CONFIG for defaults.
         """
         settings = {}
-        config_file = Path(self.get_config_file())
-        if not config_file.exists():
-            config_file.parent.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Config file not found at {
-                         config_file}. Using default settings.")
-            return {}
 
-        logger.debug(f"Loading settings from {config_file}")
-        conf = configparser.ConfigParser()
-        try:
-            conf.read(config_file)
-        except configparser.Error as e:
-            logger.error(f"Error reading config file {
-                         config_file}: {e}. Using defaults.")
-            return {}
-
-        for sect_name, sect_dict in conf.items():
+        for sect_name, sect in self.conf.items():
             if sect_name == 'DEFAULT':
                 continue
             if sect_name == 'overlay':
-                for key, value in dict(sect_dict).items():
+                for key, value in dict(sect).items():
                     settings[f'overlay_{key}'] = value
-            elif sect_name == 'presets':
-                settings['presets'] = dict(sect_dict)
+            elif sect_name in ['presets', 'activities']:
+                settings[sect_name] = dict(sect)
             else:
-                deep_merge(settings, dict(sect_dict))
+                deep_merge(settings, dict(sect))
         return settings
 
     def get_cli(self):
         settings = {}
-        preset_names = self.get_presets()
+        preset_names = ", ".join(self.conf.get('presets').keys())
+        activities_str = self.conf['activities'].get('available', '')
+        activity_names = ", ".join(
+            [a.strip() for a in activities_str.split(',') if a.strip()]
+        )
         parser = argparse.ArgumentParser(
             description=f"A Pomodoro timer with input locking. Config: '{
                 DEFAULT_CONFIG_FILE}', Log: '{DEFAULT_LOG_FILE}', State: '{STATE_FILE}'",
@@ -310,6 +333,8 @@ class Settings(dict):
             help_text = arg_config['help']
             if '{presets}' in help_text:
                 help_text = help_text.format(presets=preset_names)
+            elif '{activities}' in help_text:
+                help_text = help_text.format(activities=activity_names)
 
             # Use **kwargs to unpack the dictionary of arguments into the function call
             kwargs = {
@@ -331,15 +356,6 @@ class Settings(dict):
                 settings[key] = value
 
         return settings
-
-    def get_presets(self):
-        config_file = self.get_config_file()
-        conf = configparser.ConfigParser()
-        conf.read_dict({'presets': self.DEFAULT_PRESETS})
-        if Path(config_file).exists():
-            conf.read(config_file)
-        preset_names = ", ".join(conf['presets'].keys())
-        return preset_names
 
     def get_config_file(self):
         pre_parser = argparse.ArgumentParser(add_help=False)
@@ -707,6 +723,18 @@ def main():
                 print(f"{name}: {value}")
         else:
             print("No presets found.")
+        sys.exit(0)
+
+    if '--show-activities' in sys.argv:
+        activities_config = settings.get('activities', {})
+        if activities_config.get('available'):
+            activities_list = [
+                a.strip() for a in activities_config['available'].split(',') if a.strip()
+            ]
+            for activity in activities_list:
+                print(activity)
+        else:
+            print("No activities found.")
         sys.exit(0)
 
     try:
