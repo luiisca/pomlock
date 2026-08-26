@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0](https://github.com/luiisca/pomlock/compare/v2.0.0...v2.1.0) (2026-08-26)
+
+
+### Features
+
+* add activity flag + update log formatting to include activity name ([2d1f362](https://github.com/luiisca/pomlock/commit/2d1f362704c8de1f76c685a5ea9a9501ee3c6351))
+* add show-activites flag ([a6d297c](https://github.com/luiisca/pomlock/commit/a6d297c0424969c2d23b3e8e4ca2e638a2107599))
+
+
+### Bug Fixes
+
+* older incompatible python version causes xcb error ([37f2264](https://github.com/luiisca/pomlock/commit/37f226405df2cc889ee88497267b4c5f2b4001f4))
+
 ## [2.0.0](https://github.com/luiisca/pomlock/compare/v1.2.2...v2.0.0) (2025-09-01)
 
 
