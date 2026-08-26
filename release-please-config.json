@@ -1,7 +1,9 @@
 {
-    "packages": {
-        ".": {
-          "release-type": "simple"
-        }
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "include-v-in-tag": false,
+      "include-component-in-tag": false
     }
+  }
 }
