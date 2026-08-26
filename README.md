@@ -32,10 +32,8 @@ If you are on a Wayland system and intend to use `pomlock`'s input blocking feat
     ```
     This step is crucial for `pomlock` to be able to block input devices on Wayland.
 
-2.  **Install Dependencies**: Ensure you have `libinput` and `evtest` installed on your system. These are typically available through your distribution's package manager.
-    *   For Debian/Ubuntu: `sudo apt install libinput-tools evtest`
-    *   For Fedora: `sudo dnf install libinput-utils evtest`
-    *   For Arch Linux: `sudo pacman -S libinput evtest`
+2.  **Install Dependencies**: Ensure you have `libinput-tools` and `evtest` installed on your system. These are typically available through your distribution's package manager.
+    *   For Arch Linux: `sudo pacman -S libinput-tools evtest`
 
 3.  **Install `pomlock` (Python package)**:
     First, ensure you have `uv` installed:

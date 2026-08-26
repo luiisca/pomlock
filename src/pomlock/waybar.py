@@ -12,11 +12,11 @@ STATE_FILE = Path("/tmp/pomlock.json")
 LOG_FILE = Path("/tmp/pomlock_waybar.log")
 
 ICONS = {
-    "default": " pomlock",  # Default icon when no session is active
+    "default": "",  # Default icon when no session is active
     "actions": {
-        "pomodoro": "󰄉",   
+        "pomodoro": "󰄉",
         "short_break": "",
-        "long_break": "" 
+        "long_break": ""
     },
     "done": "󰄴"
 }

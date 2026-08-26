@@ -1,6 +1,13 @@
-key.sh
-.env/
-.venv/
-*.pyc
+# Python-generated files
 __pycache__/
-*.log
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# my files
+key.sh
