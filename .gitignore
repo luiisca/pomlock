@@ -9,5 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
-# my files
+# agents
+.agy/
+
+# other
 key.sh

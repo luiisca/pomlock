@@ -7,9 +7,10 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 ## Features
 
 - **Flexible Timer System**: Supports multiple timer presets, including the classic Pomodoro, Ultradian Rhythm (90/20), and a 50/10 cycle. New presets can be defined in the configuration file, and a one-time custom timer can be passed as a command-line argument.
-- **Input Blocking**: Disables all input devices during break periods to ensure you step away.
+- **Input Blocking**: Blocks all input devices during breaks via direct kernel evdev grab. Falls back to Hyprland (`hyprctl`) then X11 (`xinput`) when a direct grab isn't possible.
 - **Customizable Overlay**: A full-screen display during breaks with configurable font, colors, and opacity.
 - **Desktop Notifications**: Get native desktop notifications when a break starts.
+- **Activity Tracking**: Tag sessions with `--activity` (e.g., `coding`, `writing`) and list configured activities with `--show-activities`.
 - **Activity Logging**: Keeps a simple log of work and break cycles at `~/.local/share/pomlock/pomlock.log`.
 - **Safe Mode**: Run the timer without input blocking using the `--no-block-input` flag.
 - **Smart Configuration**: Settings are loaded in a logical order: Defaults < Config File < CLI Arguments. CLI flags always have the final say.
@@ -22,46 +23,24 @@ A Linux utility that enforces regular breaks by temporarily blocking input devic
 pipx install pomlock
 ```
 
-### Manual Installation (for Wayland users)
+### Waybar Integration (Optional)
 
-If you are on a Wayland system and intend to use `pomlock`'s input blocking features, you will need to manually copy the Polkit policy files. These files grant `pomlock` the necessary permissions to interact with input devices via `libinput` and `evtest`, which require `sudo` privileges.
+`pomlock` comes with a Waybar script that synchronizes automatically with your pomodoro sessions. You can find it at `src/pomlock/waybar.py`.
 
-1.  **Copy Polkit Policy Files**:
-    ```bash
-    sudo cp src/polkit-actions/*.policy /usr/share/polkit-1/actions/
-    ```
-    This step is crucial for `pomlock` to be able to block input devices on Wayland.
+To use it, copy the script to your Waybar scripts directory (e.g., `~/.config/waybar/scripts/`) and configure your Waybar `config` file.
 
-2.  **Install Dependencies**: Ensure you have `libinput-tools` and `evtest` installed on your system. These are typically available through your distribution's package manager.
-    *   For Arch Linux: `sudo pacman -S libinput-tools evtest`
+**Example Waybar Configuration**:
+```json
+"custom/pomodoro": {
+    "exec": "/path/to/your/waybar.py",
+    "interval": 1,
+    "return-type": "json",
+    "on-click": "/path/to/your/waybar.py left",
+    "on-click-right": "/path/to/your/waybar.py right"
+}
+```
+Replace `/path/to/your/waybar.py` with the actual path where you copied the script.
 
-3.  **Install `pomlock` (Python package)**:
-    First, ensure you have `uv` installed:
-    ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    ```
-    Then, navigate to the `pomlock` project directory and install it in editable mode:
-    ```bash
-    uv pip install -e .
-    ```
-    This will install `pomlock` and all its Python dependencies.
-
-4.  **Waybar Integration (Optional)**:
-    `pomlock` comes with a Waybar script that synchronizes automatically with your pomodoro sessions. You can find it at `src/pomlock/waybar.py`.
-
-    To use it, copy the script to your Waybar scripts directory (e.g., `~/.config/waybar/scripts/`) and configure your Waybar `config` file.
-
-    **Example Waybar Configuration**:
-    ```json
-    "custom/pomodoro": {
-        "exec": "/path/to/your/waybar.py",
-        "interval": 1,
-        "return-type": "json",
-        "on-click": "/path/to/your/waybar.py left",
-        "on-click-right": "/path/to/your/waybar.py right"
-    }
-    ```
-    Remember to replace `/path/to/your/waybar.py` with the actual path where you copied the script.
 
 <!-- ### Arch Linux (AUR) -->
 <!-- ```bash -->
@@ -118,6 +97,12 @@ pomlock --timer fifty_ten
 
 # Set a custom timer: 45min work, 15min short break, 30min long break after 3 cycles
 pomlock --timer "45 15 30 3"
+
+# Tag the session with an activity name (logged and shown in the UI)
+pomlock --activity coding
+
+# List all configured activities and exit
+pomlock --show-activities
 
 # Set a custom overlay text color for the session
 pomlock --overlay-color "lime"
@@ -190,6 +175,10 @@ notify = false
 standard = 25 5 20 4
 ultradian = 90 20 20 1
 fifty_ten = 50 10 10 1
+
+[activities]
+# Comma-separated list of activity names available to --activity.
+available = coding, writing, reading, other
 ```
 
 ## Log File
@@ -210,5 +199,5 @@ fifty_ten = 50 10 10 1
 - **Non-Blocking Mode**: Use `--no-block-input` for safe, non-blocking monitoring.
 - **Force Quit**: If the application becomes unresponsive, you can force it to close and restore input by running:
   ```bash
-  pkill -f pomlock.py
+  pkill -f pomlock
   ```
