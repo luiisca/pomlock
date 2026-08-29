@@ -1,0 +1,93 @@
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical
+from textual.screen import Screen
+
+from ..widgets.activity_list import ActivityListCard
+from ..widgets.footer_bar import FooterBar
+from ..widgets.goals_card import GoalsCard
+from ..widgets.nav_bar import TopNavBar
+from ..widgets.stats_chart_card import StatsChartCard
+from ..widgets.streak_card import StreakCard
+from ..widgets.timer_card import TimerCard
+
+
+class MainScreen(Screen):
+    """Homepage / Main View layout matching wireframes."""
+
+    def __init__(self, activity: str = "coding", cycles: int = 4):
+        super().__init__()
+        self._activity = activity
+        self._cycles = cycles
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="app-shell"):
+            yield TopNavBar(active_tab="home")
+
+            with Horizontal(classes="main-content-layout"):
+                # Left major column (Timer + Goals & Chart)
+                with Vertical(classes="main-left-column"):
+                    yield TimerCard(activity=self._activity, cycles_total=self._cycles)
+
+                    with Horizontal(classes="main-bottom-row"):
+                        yield GoalsCard()
+                        yield StatsChartCard()
+
+                # Right column (Streak + Activity list)
+                with Vertical(classes="main-right-column"):
+                    yield StreakCard()
+                    yield ActivityListCard()
+
+            yield FooterBar()
+
+    def toggle_zen(self) -> None:
+        """Toggle zen mode on the timer card."""
+        try:
+            timer_card = self.query_one(TimerCard)
+            timer_card.toggle_zen()
+            self.toggle_class("zen-active")
+        except Exception:
+            pass
+
+    def update_timer_view(
+        self,
+        remaining_s: int,
+        progress_pct: float,
+        cycle: int,
+        total_cycles: int,
+        pomo_m: int,
+        break_m: int,
+        is_break: bool,
+        is_running: bool,
+        kind_label: str,
+    ) -> None:
+        """Forward state update to TimerCard if mounted."""
+        try:
+            timer_card = self.query_one(TimerCard)
+            timer_card.update_state(
+                remaining_s=remaining_s,
+                progress_pct=progress_pct,
+                cycle=cycle,
+                total_cycles=total_cycles,
+                pomo_m=pomo_m,
+                break_m=break_m,
+                is_break=is_break,
+                is_running=is_running,
+                kind_label=kind_label,
+            )
+        except Exception:
+            pass
+
+    def refresh_history_views(self) -> None:
+        """Refresh goals, stats chart, and activity list from latest CSV history."""
+        try:
+            self.query_one(GoalsCard).refresh_goals()
+        except Exception:
+            pass
+        try:
+            self.query_one(StatsChartCard).refresh_chart()
+        except Exception:
+            pass
+        try:
+            self.query_one(ActivityListCard).refresh_list()
+        except Exception:
+            pass
