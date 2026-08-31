@@ -13,10 +13,9 @@ from .constants import (
     STATE_FILE,
 )
 from .history_store import HistoryStore
-from .input_handler import enable_input_devices
 from .logger import logger, setup_logging
 from .ui.app import PomlockApp
-from .utils import deep_merge
+from .utils import deep_merge, parse_duration_string
 
 
 class Settings(dict):
@@ -278,8 +277,16 @@ class Settings(dict):
             logger.error("Overlay opacity must be between 0.0 and 1.0. Exiting.")
             sys.exit(1)
 
+        # Parse goal durations to minutes
+        if "goals" in settings and isinstance(settings["goals"], dict):
+            parsed_goals = {}
+            for g_k, g_v in settings["goals"].items():
+                parsed_goals[g_k] = parse_duration_string(g_v)
+            settings["goals"] = parsed_goals
+
         super().__init__(settings)
         logger.debug(f"Effective settings: {self}")
+
 
     def get_defaults(self) -> dict:
         """Generates default settings dictionary."""
@@ -397,11 +404,5 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Application error: {e}", exc_info=True)
     finally:
-        if STATE_FILE.exists():
-            try:
-                STATE_FILE.unlink()
-            except OSError:
-                pass
-        if settings.get("block_input"):
-            enable_input_devices()
+        app.engine.cleanup()
         logger.info("Session ended")

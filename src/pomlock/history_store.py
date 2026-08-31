@@ -1,103 +1,54 @@
-import csv
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
-from .constants import DEFAULT_CSV_FILE, SessionKind
+from .constants import DEFAULT_DB_FILE, GoalPeriod, SessionKind
+from .db import BlockStatus, Database
 from .logger import logger
-
-CSV_HEADERS = [
-    "timestamp",
-    "activity",
-    "session_type",
-    "duration_minutes",
-    "cycle",
-    "session",
-    "completed",
-]
 
 
 class HistoryStore:
-    """Manages CSV session persistence and statistical aggregations."""
+    """Manages SQLite session persistence, goals, and statistical aggregations."""
 
-    def __init__(self, file_path: Path | str = DEFAULT_CSV_FILE):
-        self._path = Path(file_path)
-        self._init_file()
+    def __init__(
+        self,
+        db_path: Optional[Path | str] = None,
+        db: Optional[Database] = None,
+        file_path: Optional[Path | str] = None,
+    ):
+        target_path = db_path or file_path or DEFAULT_DB_FILE
+        self._db = db or Database(db_path=target_path)
 
-    def _init_file(self) -> None:
-        """Create directory and header row if file does not exist, and seed dummy data."""
-        if not self._path.exists():
-            try:
-                self._path.parent.mkdir(parents=True, exist_ok=True)
-                with open(self._path, mode="w", newline="", encoding="utf-8") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(CSV_HEADERS)
-                logger.debug(f"Initialized history CSV at {self._path}")
-                self._seed_dummy_data()
-            except OSError as e:
-                logger.error(f"Failed to initialize CSV history file: {e}")
-        else:
-            # If existing file is empty or only contains header, seed sample data
-            try:
-                with open(self._path, mode="r", encoding="utf-8") as f:
-                    lines = [line.strip() for line in f if line.strip()]
-                if len(lines) <= 1:
-                    self._seed_dummy_data()
-            except OSError:
-                pass
+    @property
+    def db(self) -> Database:
+        return self._db
 
-    def _seed_dummy_data(self) -> None:
-        """Populate realistic sample records for today and recent days for testing."""
-        today = date.today()
-        # Seed records for today and past 7 days
-        sample_sessions = [
-            # 6 days ago
-            (today - timedelta(days=6), "09:00", "coding", 50, 1, 1),
-            (today - timedelta(days=6), "10:30", "studying", 90, 2, 1),
-            (today - timedelta(days=6), "14:00", "coding", 50, 3, 1),
-            # 5 days ago
-            (today - timedelta(days=5), "08:30", "coding", 90, 1, 1),
-            (today - timedelta(days=5), "11:00", "reading", 30, 2, 1),
-            (today - timedelta(days=5), "15:00", "coding", 90, 3, 1),
-            # 4 days ago
-            (today - timedelta(days=4), "09:30", "studying", 50, 1, 1),
-            (today - timedelta(days=4), "14:00", "reading", 40, 2, 1),
-            # 3 days ago
-            (today - timedelta(days=3), "08:00", "coding", 90, 1, 1),
-            (today - timedelta(days=3), "10:30", "studying", 60, 2, 1),
-            (today - timedelta(days=3), "13:30", "coding", 60, 3, 1),
-            # 2 days ago
-            (today - timedelta(days=2), "09:00", "coding", 120, 1, 1),
-            (today - timedelta(days=2), "14:00", "studying", 90, 2, 1),
-            (today - timedelta(days=2), "16:30", "reading", 40, 3, 1),
-            # Yesterday
-            (today - timedelta(days=1), "09:00", "coding", 90, 1, 1),
-            (today - timedelta(days=1), "11:30", "coding", 60, 2, 1),
-            (today - timedelta(days=1), "15:00", "studying", 90, 3, 1),
-            # Today
-            (today, "08:30", "sleep", 416, 1, 1),
-            (today, "08:30", "coding", 120, 1, 1),
-            (today, "12:00", "studying", 120, 2, 1),
-            (today, "15:00", "reading", 40, 3, 1),
-        ]
+    def start_block(
+        self,
+        activity: str,
+        kind: SessionKind,
+        cycle: int,
+        session: int,
+        timestamp: Optional[str] = None,
+    ) -> str:
+        """Start a new block in the database with 0 elapsed seconds."""
+        return self._db.start_block(
+            activity=activity,
+            kind=kind,
+            cycle=cycle,
+            session=session,
+            timestamp=timestamp,
+        )
 
-        try:
-            with open(self._path, mode="a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                for s_date, s_time, act, dur, cyc, sess in sample_sessions:
-                    dt_str = f"{s_date.isoformat()}T{s_time}:00"
-                    writer.writerow([
-                        dt_str,
-                        act,
-                        SessionKind.POMODORO.value,
-                        dur,
-                        cyc,
-                        sess,
-                        "True",
-                    ])
-            logger.debug(f"Prepopulated dummy history in {self._path}")
-        except OSError as e:
-            logger.error(f"Failed to seed dummy history: {e}")
+    def update_block_duration(
+        self,
+        block_id: str,
+        duration_s: int,
+        completed: bool = False,
+    ) -> None:
+        """Update elapsed seconds and completion state of an active block."""
+        status = BlockStatus.COMPLETED if completed else BlockStatus.INCOMPLETE
+        self._db.update_block(block_id=block_id, duration_s=duration_s, status=status)
 
     def record(
         self,
@@ -108,66 +59,27 @@ class HistoryStore:
         session: int,
         completed: bool = True,
     ) -> None:
-        """Append a completed or interrupted session record."""
-        self._init_file()
-        now_str = datetime.now().isoformat()
-
-        row = [
-            now_str,
-            activity,
-            kind.value if isinstance(kind, SessionKind) else str(kind),
-            duration_m,
-            cycle,
-            session,
-            str(completed),
-        ]
-
-        try:
-            with open(self._path, mode="a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(row)
-            logger.debug(f"Saved session record: {row}")
-        except OSError as e:
-            logger.error(f"Failed to write history record: {e}")
+        """Compatibility method: record a completed or interrupted session."""
+        duration_s = duration_m * 60
+        block_id = self.start_block(activity=activity, kind=kind, cycle=cycle, session=session)
+        self.update_block_duration(block_id=block_id, duration_s=duration_s, completed=completed)
 
     def get_records(self) -> list[dict[str, Any]]:
-        """Read all session records from CSV."""
-        if not self._path.exists():
-            return []
+        """Read all session records from database."""
+        return self._db.get_records()
 
-        records: list[dict[str, Any]] = []
-        try:
-            with open(self._path, mode="r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    records.append(row)
-        except OSError as e:
-            logger.error(f"Failed to read history CSV: {e}")
-
-        return records
+    def get_period_focus_by_activity(
+        self,
+        period: GoalPeriod = GoalPeriod.DAILY,
+        target_date: Optional[date] = None,
+    ) -> dict[str, int]:
+        """Aggregate focus duration in minutes by activity for a specific period."""
+        sec_map = self._db.get_period_focus_seconds(period=period, target_date=target_date)
+        return {act: dur_s // 60 for act, dur_s in sec_map.items()}
 
     def get_today_focus_by_activity(self, target_date: Optional[date] = None) -> dict[str, int]:
         """Aggregate focus minutes by activity for a specific day (default: today)."""
-        check_date = target_date or date.today()
-        records = self.get_records()
-        totals: dict[str, int] = {}
-
-        for r in records:
-            # Only count pomodoro / focus work
-            if r.get("session_type") != SessionKind.POMODORO.value:
-                continue
-
-            ts_str = r.get("timestamp", "")
-            try:
-                rec_dt = datetime.fromisoformat(ts_str)
-                if rec_dt.date() == check_date:
-                    act = r.get("activity", "other").lower()
-                    dur = int(r.get("duration_minutes", 0))
-                    totals[act] = totals.get(act, 0) + dur
-            except (ValueError, TypeError):
-                continue
-
-        return totals
+        return self.get_period_focus_by_activity(period=GoalPeriod.DAILY, target_date=target_date)
 
     def get_today_total_focus_minutes(self, target_date: Optional[date] = None) -> int:
         """Total focus minutes across all activities for today."""
@@ -178,9 +90,8 @@ class HistoryStore:
         self,
         week_offset: int = 0,
     ) -> tuple[str, list[tuple[date, int]]]:
-        """Return formatted week range label (e.g. '10/8 - 16/8') and 7-day focus minute pairs."""
+        """Return formatted week range label and 7-day focus minute pairs."""
         today = date.today()
-        # Monday of reference week
         start_of_current_week = today - timedelta(days=today.weekday())
         start_of_week = start_of_current_week + timedelta(weeks=week_offset)
         end_of_week = start_of_week + timedelta(days=6)
@@ -233,3 +144,24 @@ class HistoryStore:
 
         parsed.sort(key=lambda x: x["datetime"], reverse=not ascending)
         return parsed
+
+    def get_activities(self) -> list[dict[str, Any]]:
+        """Return all activity definitions and multi-timeframe goals."""
+        return self._db.get_activities()
+
+    def save_activity(
+        self,
+        name: str,
+        daily_goal: int,
+        weekly_goal: int,
+        monthly_goal: int,
+        yearly_goal: int,
+    ) -> None:
+        """Save activity goals in minutes to SQLite database."""
+        self._db.save_activity(
+            name=name,
+            daily_goal=daily_goal,
+            weekly_goal=weekly_goal,
+            monthly_goal=monthly_goal,
+            yearly_goal=yearly_goal,
+        )

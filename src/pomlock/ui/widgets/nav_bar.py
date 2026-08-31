@@ -3,11 +3,9 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Button, Label
 
-from ...constants import StatsView
-
 
 class TopNavBar(Horizontal):
-    """Top navigation bar for switching between Home and Stats views."""
+    """Top navigation bar for switching between Home, Stats, and Settings views."""
 
     DEFAULT_CLASSES = "top-navbar-container"
 
@@ -44,6 +42,11 @@ class TopNavBar(Horizontal):
                 id="nav-year",
                 classes=f"nav-tab-btn {'nav-tab-active' if self._active_tab == 'year' else ''}",
             )
+            yield Button(
+                "[b]6[/b] settings",
+                id="nav-settings",
+                classes=f"nav-tab-btn {'nav-tab-active' if self._active_tab == 'settings' else ''}",
+            )
 
     @on(Button.Pressed, "#nav-home")
     def _go_home(self) -> None:
@@ -65,6 +68,10 @@ class TopNavBar(Horizontal):
     def _go_year(self) -> None:
         self.app.action_show_year()
 
+    @on(Button.Pressed, "#nav-settings")
+    def _go_settings(self) -> None:
+        self.app.action_show_settings()
+
     def set_active_tab(self, tab: str) -> None:
         """Update active tab indicator."""
         self._active_tab = tab
@@ -74,6 +81,7 @@ class TopNavBar(Horizontal):
             ("nav-week", "week"),
             ("nav-month", "month"),
             ("nav-year", "year"),
+            ("nav-settings", "settings"),
         ]:
             try:
                 btn = self.query_one(f"#{btn_id}", Button)

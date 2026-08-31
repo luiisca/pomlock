@@ -8,8 +8,22 @@ DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / APP_NAME
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / f"{APP_NAME}.conf"
 DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
 DEFAULT_CSV_FILE = DEFAULT_DATA_DIR / "history.csv"
+DEFAULT_DB_FILE = DEFAULT_DATA_DIR / "pomlock.db"
 STATE_FILE = Path(f"/tmp/{APP_NAME}.json")
 SESSION_TYPE = os.environ.get('XDG_SESSION_TYPE', 'x11')
+
+
+class GoalPeriod(str, Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
+
+
+WORK_DAYS_PER_WEEK = 5
+WORK_DAYS_PER_MONTH = 22
+WORK_DAYS_PER_YEAR = 260
+
 
 
 class SessionKind(str, Enum):
@@ -62,8 +76,13 @@ DEFAULT_GOALS = {
     "reading": 40,   # 40m
 }
 
+# Goal widget UI indicators
+ACTIVE_GOAL_INDICATOR = "●"
+GOAL_COMPLETED_TEXT = "🎉 Goal Completed!"
+
 # Fonts and overlay styling
 DEFAULT_OVERLAY_ACCENT = "#b48ead"
 DEFAULT_FONTS_DIR = Path(__file__).parent / "ui" / "fonts"
 DSEG7_FONT_FILE = DEFAULT_FONTS_DIR / "DSEG7Classic-Bold.ttf"
+
 

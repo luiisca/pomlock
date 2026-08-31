@@ -12,6 +12,7 @@ from ..timer_engine import TimerEngine
 from .break_overlay import BreakOverlayManager
 from .screens.break_screen import BreakScreen
 from .screens.main_screen import MainScreen
+from .screens.settings_screen import SettingsScreen
 from .screens.stats_screen import StatsScreen
 from .widgets.timer_card import TimerCard
 
@@ -22,23 +23,22 @@ class PomlockApp(App):
     """Main Textual application for pomlock."""
 
     CSS_PATH = CSS_FILE
-    MODES = {
-        "main": MainScreen,
-        "stats": StatsScreen,
-    }
     DEFAULT_MODE = "main"
 
     BINDINGS = [
+        Binding("z", "toggle_zen", "Zen Mode"),
+        Binding("g", "cycle_goals", "Cycle Goals"),
+        Binding("space", "toggle_timer", "Toggle Pause"),
+        Binding("r", "reset_timer", "Reset"),
+        Binding("s", "skip_timer", "Skip"),
+        Binding("q", "quit_app", "Quit"),
+        Binding("ctrl+q", "quit_app", show=False),
         Binding("1", "show_main", "Home", show=False),
         Binding("2", "show_today", "Today", show=False),
         Binding("3", "show_week", "Week", show=False),
         Binding("4", "show_month", "Month", show=False),
         Binding("5", "show_year", "Year", show=False),
-        Binding("space", "toggle_timer", "Toggle Pause", show=False),
-        Binding("r", "reset_timer", "Reset", show=False),
-        Binding("s", "skip_timer", "Skip", show=False),
-        Binding("z", "toggle_zen", "Zen Mode", show=False),
-        Binding("q", "quit_app", "Quit", show=False),
+        Binding("6", "show_settings", "Settings", show=False),
     ]
 
     def __init__(
@@ -59,10 +59,15 @@ class PomlockApp(App):
         self._break_modal: Optional[BreakScreen] = None
         self._break_overlay = BreakOverlayManager()
 
-        self.MODES = {
-            "main": lambda: MainScreen(activity=self.engine.activity, cycles=self.engine.total_cycles),
-            "stats": StatsScreen,
-        }
+        self.add_mode(
+            "main",
+            lambda: MainScreen(
+                activity=self.engine.activity,
+                cycles=self.engine.total_cycles,
+            ),
+        )
+        self.add_mode("stats", StatsScreen)
+        self.add_mode("settings", SettingsScreen)
 
     def on_mount(self) -> None:
         """Start countdown engine and switch to main mode."""
@@ -77,12 +82,19 @@ class PomlockApp(App):
     def _handle_engine_tick(self, remaining_s: int, progress_pct: float) -> None:
         """Update active screens with current countdown values."""
         is_running = self.engine.state == TimerState.RUNNING
-        is_break = self.engine.kind in (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
+        is_break = self.engine.kind in (
+            SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
         kind_label = self.engine.kind.value.replace("_", " ").title()
 
         break_duration_m = self.engine.l_break_m if self.engine.kind == SessionKind.LONG_BREAK else self.engine.s_break_m
         if not is_break:
             break_duration_m = self.engine.next_break_m
+
+        # Only accumulate live elapsed seconds during a running pomodoro (not during breaks)
+        session_elapsed_s = self.engine.elapsed_s if (
+            is_running and not is_break) else 0.0
+        active_activity = self.engine.activity if (
+            is_running and not is_break) else None
 
         try:
             if isinstance(self.screen, MainScreen):
@@ -96,7 +108,11 @@ class PomlockApp(App):
                     is_break=is_break,
                     is_running=is_running,
                     kind_label=kind_label,
+                    session_elapsed_s=session_elapsed_s,
                 )
+            elif isinstance(self.screen, StatsScreen):
+                self.screen.update_live_goals(
+                    active_activity, session_elapsed_s)
 
             if is_break:
                 self._break_overlay.update_timer(remaining_s)
@@ -129,6 +145,10 @@ class PomlockApp(App):
         try:
             if isinstance(self.screen, MainScreen):
                 self.screen.refresh_history_views()
+            elif isinstance(self.screen, StatsScreen):
+                self.screen.update_live_goals(None, 0.0)
+                for card in self.screen.query("GoalsCard"):
+                    card.refresh_goals()
         except Exception:
             pass
 
@@ -155,6 +175,14 @@ class PomlockApp(App):
     def action_skip_timer(self) -> None:
         self.engine.skip()
 
+    def action_cycle_goals(self) -> None:
+        """Cycle timeframe displayed on main screen GoalsCard."""
+        if isinstance(self.screen, MainScreen):
+            new_period = self.screen.cycle_goals_period()
+            if new_period and hasattr(self, "notify"):
+                self.notify(f"Goals timeframe: {
+                            new_period.value}", title="Goals View")
+
     def action_show_main(self) -> None:
         try:
             if self.current_mode != "main":
@@ -173,6 +201,13 @@ class PomlockApp(App):
 
     def action_show_year(self) -> None:
         self._switch_stats(StatsView.YEAR)
+
+    def action_show_settings(self) -> None:
+        try:
+            if self.current_mode != "settings":
+                self.switch_mode("settings")
+        except Exception:
+            pass
 
     def action_toggle_zen(self) -> None:
         logger.debug("Zen mode toggle requested")

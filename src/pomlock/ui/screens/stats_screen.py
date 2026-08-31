@@ -1,10 +1,12 @@
+from typing import Optional
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 
-from ...constants import StatsView
+from ...constants import GoalPeriod, StatsView
 from ..widgets.activity_list import ActivityListCard
 from ..widgets.footer_bar import FooterBar
+from ..widgets.goals_card import GoalsCard
 from ..widgets.nav_bar import TopNavBar
 from ..widgets.placeholders import (
     MonthStatsWidget,
@@ -16,7 +18,7 @@ from ..widgets.stats_header import StatsHeader
 
 
 class StatsScreen(Screen):
-    """Analytics screen supporting Today, Week, Month, and Year views."""
+    """Analytics screen supporting Today, Week, Month, and Year views with goal tracking."""
 
     def __init__(self, initial_view: StatsView = StatsView.TODAY):
         super().__init__()
@@ -48,6 +50,14 @@ class StatsScreen(Screen):
     def on_stats_header_view_selected(self, event: StatsHeader.ViewSelected) -> None:
         """Handle view change requests from tabs."""
         self.set_view(event.view)
+
+    def update_live_goals(self, active_activity: Optional[str], session_elapsed_s: float) -> None:
+        """Forward real-time elapsed seconds to any mounted GoalsCard in the stats view."""
+        try:
+            for card in self.query(GoalsCard):
+                card.update_live_progress(active_activity, session_elapsed_s)
+        except Exception:
+            pass
 
     def set_view(self, view: StatsView) -> None:
         """Re-populate stats container with active view widget."""
@@ -81,16 +91,25 @@ class StatsScreen(Screen):
             pass
 
     def _get_view_widgets(self, view: StatsView) -> list:
-        """Return the widgets corresponding to the selected view."""
+        """Return the widgets corresponding to the selected view with respective goals."""
         if view == StatsView.TODAY:
             return [
-                Vertical(TodayStatsWidget(), classes="stats-left-area"),
+                Vertical(TodayStatsWidget(), GoalsCard(period=GoalPeriod.DAILY), classes="stats-left-area"),
                 Vertical(ActivityListCard(), classes="stats-right-area"),
             ]
         if view == StatsView.WEEK:
-            return [WeekStatsWidget()]
+            return [
+                Vertical(WeekStatsWidget(), classes="stats-left-area"),
+                Vertical(GoalsCard(period=GoalPeriod.WEEKLY), classes="stats-right-area"),
+            ]
         if view == StatsView.MONTH:
-            return [MonthStatsWidget()]
+            return [
+                Vertical(MonthStatsWidget(), classes="stats-left-area"),
+                Vertical(GoalsCard(period=GoalPeriod.MONTHLY), classes="stats-right-area"),
+            ]
         if view == StatsView.YEAR:
-            return [YearStatsWidget()]
+            return [
+                Vertical(YearStatsWidget(), classes="stats-left-area"),
+                Vertical(GoalsCard(period=GoalPeriod.YEARLY), classes="stats-right-area"),
+            ]
         return [TodayStatsWidget()]
