@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label
 
 from ...constants import (
@@ -93,10 +93,8 @@ class GoalsCard(Vertical):
         return self._current_period
 
     def compose(self) -> ComposeResult:
-        tag_label = f"{self._current_period.value} goals"
-        yield Label(tag_label, classes="card-tag", id="goals-card-tag")
-        with Vertical(id="goals-entries-container"):
-            pass
+        yield Label(f"{self._current_period.value} goals", classes="card-title")
+        yield VerticalScroll(id="goals-entries-container")
 
     def on_mount(self) -> None:
         """Populate and refresh goals periodically."""
@@ -121,7 +119,7 @@ class GoalsCard(Vertical):
             return
 
         try:
-            container = self.query_one("#goals-entries-container", Vertical)
+            container = self.query_one("#goals-entries-container", VerticalScroll)
         except Exception:
             return
 
@@ -181,8 +179,7 @@ class GoalsCard(Vertical):
         settings = getattr(self.app, "settings", {})
 
         try:
-            tag = self.query_one("#goals-card-tag", Label)
-            tag.update(f"{self._current_period.value} goals")
+            self.border_title = f"{self._current_period.value} goals"
         except Exception:
             pass
 
@@ -267,7 +264,7 @@ class GoalsCard(Vertical):
         self._cached_targets = ordered_targets
 
         try:
-            container = self.query_one("#goals-entries-container", Vertical)
+            container = self.query_one("#goals-entries-container", VerticalScroll)
         except Exception:
             return
 

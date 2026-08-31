@@ -9,7 +9,7 @@ class LegendWidget(Vertical):
     DEFAULT_CLASSES = "card-container legend-box"
 
     def compose(self) -> ComposeResult:
-        yield Label("legend", classes="legend-title")
+        yield Label("legend", classes="card-title")
         yield Label("■ sleep", classes="legend-item legend-sleep")
         yield Label("■ coding", classes="legend-item legend-coding")
         yield Label("■ studying", classes="legend-item legend-studying")

@@ -16,7 +16,7 @@ class StatsChartCard(Vertical):
         self._week_offset = 0
 
     def compose(self) -> ComposeResult:
-        yield Label("stats", classes="card-tag")
+        yield Label("stats", classes="card-title")
 
         # Timeframe header with interactive navigation arrows
         with Horizontal(classes="stats-nav-header-row"):

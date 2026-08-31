@@ -122,6 +122,11 @@ class HistoryStore:
 
     def get_all_focus_sessions_sorted(self, ascending: bool = True) -> list[dict[str, Any]]:
         """Return all focus sessions chronologically sorted."""
+        blocks = self.get_all_blocks_sorted(ascending=ascending)
+        return [block for block in blocks if block["session_type"] == SessionKind.POMODORO.value]
+
+    def get_all_blocks_sorted(self, ascending: bool = True) -> list[dict[str, Any]]:
+        """Return every recorded focus and break block chronologically."""
         records = self.get_records()
         parsed: list[dict[str, Any]] = []
 
@@ -129,15 +134,18 @@ class HistoryStore:
             ts_str = r.get("timestamp", "")
             try:
                 dt = datetime.fromisoformat(ts_str)
-                dur = int(r.get("duration_minutes", 0))
+                dur_s = int(r.get("duration_s", 0))
                 parsed.append({
                     "datetime": dt,
                     "date": dt.date(),
                     "time": dt.strftime("%H:%M"),
                     "activity": r.get("activity", "other"),
-                    "duration_minutes": dur,
+                    "duration_minutes": dur_s // 60,
+                    "duration_s": dur_s,
                     "session_type": r.get("session_type"),
                     "completed": r.get("completed") == "True",
+                    "started_at": dt,
+                    "ended_at": dt + timedelta(seconds=dur_s),
                 })
             except (ValueError, TypeError):
                 continue

@@ -13,6 +13,7 @@ from .constants import (
     STATE_FILE,
 )
 from .history_store import HistoryStore
+from .instance_lock import InstanceLock, focus_terminal, read_status
 from .logger import logger, setup_logging
 from .ui.app import PomlockApp
 from .utils import deep_merge, parse_duration_string
@@ -369,40 +370,47 @@ class Settings(dict):
 
 
 def main() -> None:
-    settings = Settings()
+    instance_lock = InstanceLock()
+    if not instance_lock.acquire():
+        if focus_terminal(instance_lock.owner_pid()):
+            return
 
-    if "--show-presets" in sys.argv:
-        if "presets" in settings:
-            for name, value in settings.get("presets").items():
+        status = read_status()
+        print(f"Pomlock already running{f': {status}' if status else '.'}")
+        return
+
+    app = None
+
+    try:
+        settings = Settings()
+
+        if "--show-presets" in sys.argv:
+            for name, value in settings.get("presets", {}).items():
                 print(f"{name}: {value}")
-        else:
-            print("No presets found.")
-        sys.exit(0)
+            return
 
-    if "--show-activities" in sys.argv:
-        activities_config = settings.get("activities", {})
-        if activities_config.get("available"):
+        if "--show-activities" in sys.argv:
+            activities_config = settings.get("activities", {})
             activities_list = [
-                a.strip() for a in activities_config["available"].split(",") if a.strip()
+                item.strip() for item in activities_config.get("available", "").split(",")
+                if item.strip()
             ]
             for activity in activities_list:
                 print(activity)
-        else:
-            print("No activities found.")
-        sys.exit(0)
+            return
 
-    setup_logging(settings.get("log_file"), settings.get("verbose"))
-    logger.debug(f"Config after loading: {settings}")
+        setup_logging(settings.get("log_file"), settings.get("verbose"))
+        logger.debug(f"Config after loading: {settings}")
 
-    history_store = HistoryStore()
-    app = PomlockApp(settings=settings, history_store=history_store)
-
-    try:
+        history_store = HistoryStore()
+        app = PomlockApp(settings=settings, history_store=history_store)
         app.run()
     except KeyboardInterrupt:
         logger.info("Exiting...")
     except Exception as e:
         logger.error(f"Application error: {e}", exc_info=True)
     finally:
-        app.engine.cleanup()
+        if app is not None:
+            app.engine.cleanup()
+        instance_lock.release()
         logger.info("Session ended")

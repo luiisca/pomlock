@@ -28,16 +28,24 @@ class MainScreen(Screen):
             with Horizontal(classes="main-content-layout"):
                 # Left major column (Timer + Goals & Chart)
                 with Vertical(classes="main-left-column"):
-                    yield TimerCard(activity=self._activity, cycles_total=self._cycles)
+                    timer_card = TimerCard(activity=self._activity, cycles_total=self._cycles)
+                    timer_card.add_class("with-title")
+                    yield timer_card
 
                     with Horizontal(classes="main-bottom-row"):
-                        yield GoalsCard(active_activity=self._activity)
+                        goals_card = GoalsCard(active_activity=self._activity)
+                        goals_card.add_class("with-title")
+                        yield goals_card
                         yield StatsChartCard()
 
                 # Right column (Streak + Activity list)
                 with Vertical(classes="main-right-column"):
-                    yield StreakCard()
-                    yield ActivityListCard()
+                    streak_card = StreakCard()
+                    streak_card.add_class("with-title")
+                    yield streak_card
+                    activity_list = ActivityListCard()
+                    activity_list.add_class("with-title")
+                    yield activity_list
 
             # yield FooterBar()
             yield Footer()

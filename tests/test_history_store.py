@@ -2,6 +2,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from datetime import datetime, timedelta
+
 from pomlock.constants import GoalPeriod, SessionKind
 from pomlock.history_store import HistoryStore
 
@@ -116,6 +118,27 @@ class TestHistoryStore(unittest.TestCase):
         self.assertEqual(len(chronological), 2)
         for i in range(len(chronological) - 1):
             self.assertLessEqual(chronological[i]["datetime"], chronological[i + 1]["datetime"])
+
+    def test_all_blocks_include_breaks_and_end_times(self):
+        start = datetime(2026, 8, 31, 9, 0)
+        focus_id = self.store.start_block(
+            "coding", SessionKind.POMODORO, 1, 1, start.isoformat()
+        )
+        break_id = self.store.start_block(
+            "coding", SessionKind.SHORT_BREAK, 1, 1,
+            (start + timedelta(minutes=26)).isoformat(),
+        )
+        self.store.update_block_duration(focus_id, duration_s=25 * 60, completed=True)
+        self.store.update_block_duration(break_id, duration_s=5 * 60, completed=True)
+
+        blocks = self.store.get_all_blocks_sorted()
+
+        self.assertEqual([block["session_type"] for block in blocks], [
+            SessionKind.POMODORO.value,
+            SessionKind.SHORT_BREAK.value,
+        ])
+        self.assertEqual(blocks[0]["started_at"], start)
+        self.assertEqual(blocks[0]["ended_at"], start + timedelta(minutes=25))
 
 
 if __name__ == "__main__":

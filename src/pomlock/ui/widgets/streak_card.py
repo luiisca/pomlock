@@ -13,7 +13,7 @@ class StreakCard(Vertical):
         self._streak_days = streak_days
 
     def compose(self) -> ComposeResult:
-        yield Label(f"{self._streak_days} day streak", classes="card-tag")
+        yield Label("streak", classes="card-title")
 
         # Week day check indicators
         with Horizontal(classes="streak-days-row"):

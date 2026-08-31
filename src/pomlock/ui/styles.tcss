@@ -56,9 +56,44 @@ TopNavBar.top-navbar-container {
 
 /* Card container base using theme colors */
 .card-container {
-    border: round $secondary-darken-2;
+    border: solid $secondary-darken-2;
+    border-title-color: $text-muted;
     background: $surface;
     padding: 0 1;
+}
+
+.card-container:focus-within {
+    border: double $accent;  /* Double border for thicker appearance when focused */
+    border-title-color: $accent;
+    background: $surface-lighten-1;  /* Subtle background change */
+}
+
+/* Title integration - reduce top padding for cards with integrated titles */
+.card-container.with-title {
+    padding-top: 0;  /* Title will touch the top border */
+}
+
+/* Title styling for integrated appearance */
+.card-title {
+    text-style: bold;
+    color: $text-primary;
+    background: $surface;  /* Match card background */
+    padding: 0 1;  /* Match horizontal padding */
+    margin: -1 -1 0 -1;  /* Pull up to overlap border */
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Improve gap visibility in activity list */
+.activity-gap-row {
+    background: $surface-darken-1;  /* Slightly darker background */
+    opacity: 0.8;  /* Slightly transparent */
+}
+
+.activity-gap-row .activity-name,
+.activity-gap-row .activity-duration {
+    color: $text-muted;  /* Keep muted text but enhance with background */
+    text-style: italic;  /* Italic to distinguish */
 }
 
 .card-tag {
@@ -423,6 +458,15 @@ ActivityListCard.activity-list-box {
     text-align: right;
 }
 
+.activity-break-row,
+.activity-break-row .activity-name,
+.activity-break-row .activity-duration,
+.activity-gap-row,
+.activity-gap-row .activity-name,
+.activity-gap-row .activity-duration {
+    color: $text-disabled;
+}
+
 /* --- Footer Bar --- */
 FooterBar.footer-container {
     height: 1;
@@ -743,4 +787,3 @@ TimerCard.zen-mode #timer-progress {
     color: $success;
     text-align: center;
 }
-

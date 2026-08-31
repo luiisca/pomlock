@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from textual.app import App, ComposeResult
+from textual.containers import VerticalScroll
 
 from pomlock.constants import GoalPeriod
 from pomlock.history_store import HistoryStore
@@ -168,8 +169,7 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             next_p = card.cycle_period()
             self.assertEqual(next_p, GoalPeriod.WEEKLY)
             await pilot.pause()
-            tag = card.query_one("#goals-card-tag")
-            self.assertIn("weekly", str(tag.render()))
+            self.assertEqual(card.border_title, "weekly goals")
 
             # Cycle to monthly
             next_p = card.cycle_period()
@@ -184,6 +184,24 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             # Cycle back to daily
             next_p = card.cycle_period()
             self.assertEqual(next_p, GoalPeriod.DAILY)
+
+    async def test_goals_entries_are_scrollable(self):
+        mock_history = MagicMock(spec=HistoryStore)
+        mock_history.get_period_focus_by_activity.return_value = {}
+        mock_history.get_activities.return_value = [
+            {"name": f"activity-{index}", "daily_goal": 60, "weekly_goal": 300,
+             "monthly_goal": 1320, "yearly_goal": 15600}
+            for index in range(12)
+        ]
+
+        app = GoalsTestApp(settings={}, history_store=mock_history)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            card = app.query_one(GoalsCard)
+            container = card.query_one("#goals-entries-container", VerticalScroll)
+
+            self.assertTrue(container.can_focus)
+            self.assertEqual(len(container.children), 12)
 
     async def test_active_indicator_across_activities_and_progress_movement(self):
         """Test active indicator switching across activities and moving progress bar."""

@@ -113,7 +113,7 @@ class TimerCard(Vertical):
         self._cycles_total = cycles_total
 
     def compose(self) -> ComposeResult:
-        yield Label("timer", classes="card-tag")
+        yield Label("timer", classes="card-title")
 
         # Main digital clock display
         with Horizontal(classes="timer-display-row"):
