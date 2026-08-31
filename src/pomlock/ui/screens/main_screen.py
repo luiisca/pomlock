@@ -47,8 +47,7 @@ class MainScreen(Screen):
                     activity_list.add_class("with-title")
                     yield activity_list
 
-            # yield FooterBar()
-            yield Footer()
+            yield FooterBar()
 
     def toggle_zen(self) -> None:
         """Toggle zen mode on the timer card."""

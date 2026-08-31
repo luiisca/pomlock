@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
+import random
 
 from .constants import DEFAULT_DB_FILE, GoalPeriod, SessionKind
 from .db import BlockStatus, Database
@@ -155,7 +156,18 @@ class HistoryStore:
 
     def get_activities(self) -> list[dict[str, Any]]:
         """Return all activity definitions and multi-timeframe goals."""
-        return self._db.get_activities()
+        activities = self._db.get_activities()
+
+        # Assign random colors to activities that don't have one
+        for activity in activities:
+            if not activity.get('color'):
+                activity['color'] = self._generate_random_color()
+
+        return activities
+
+    def _generate_random_color(self) -> str:
+        """Generate a random hex color."""
+        return "#{:06x}".format(random.randint(0, 0xFFFFFF))
 
     def save_activity(
         self,
@@ -164,6 +176,7 @@ class HistoryStore:
         weekly_goal: int,
         monthly_goal: int,
         yearly_goal: int,
+        color: Optional[str] = None,
     ) -> None:
         """Save activity goals in minutes to SQLite database."""
         self._db.save_activity(
@@ -172,4 +185,5 @@ class HistoryStore:
             weekly_goal=weekly_goal,
             monthly_goal=monthly_goal,
             yearly_goal=yearly_goal,
+            color=color,
         )

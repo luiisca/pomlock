@@ -51,7 +51,8 @@ class Database:
                         daily_goal INTEGER NOT NULL DEFAULT 0,
                         weekly_goal INTEGER NOT NULL DEFAULT 0,
                         monthly_goal INTEGER NOT NULL DEFAULT 0,
-                        yearly_goal INTEGER NOT NULL DEFAULT 0
+                        yearly_goal INTEGER NOT NULL DEFAULT 0,
+                        color TEXT
                     )
                 """)
                 conn.commit()
@@ -70,8 +71,8 @@ class Database:
             with self._get_connection() as conn:
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO activities (name, daily_goal, weekly_goal, monthly_goal, yearly_goal)
-                    VALUES (?, 0, 0, 0, 0)
+                    INSERT OR IGNORE INTO activities (name, daily_goal, weekly_goal, monthly_goal, yearly_goal, color)
+                    VALUES (?, 0, 0, 0, 0, NULL)
                     """,
                     (clean_name,),
                 )
@@ -221,7 +222,7 @@ class Database:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT name, daily_goal, weekly_goal, monthly_goal, yearly_goal
+                    SELECT name, daily_goal, weekly_goal, monthly_goal, yearly_goal, color
                     FROM activities
                     ORDER BY name ASC
                 """)
@@ -237,21 +238,23 @@ class Database:
         weekly_goal: int,
         monthly_goal: int,
         yearly_goal: int,
+        color: Optional[str] = None,
     ) -> None:
         """Insert or update activity goals in minutes."""
         try:
             with self._get_connection() as conn:
                 conn.execute(
                     """
-                    INSERT INTO activities (name, daily_goal, weekly_goal, monthly_goal, yearly_goal)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO activities (name, daily_goal, weekly_goal, monthly_goal, yearly_goal, color)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(name) DO UPDATE SET
                         daily_goal = excluded.daily_goal,
                         weekly_goal = excluded.weekly_goal,
                         monthly_goal = excluded.monthly_goal,
-                        yearly_goal = excluded.yearly_goal
+                        yearly_goal = excluded.yearly_goal,
+                        color = excluded.color
                     """,
-                    (name.lower(), daily_goal, weekly_goal, monthly_goal, yearly_goal),
+                    (name.lower(), daily_goal, weekly_goal, monthly_goal, yearly_goal, color),
                 )
                 conn.commit()
             logger.debug(f"Saved activity {name} goals")

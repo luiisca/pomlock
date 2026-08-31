@@ -787,3 +787,30 @@ TimerCard.zen-mode #timer-progress {
     color: $success;
     text-align: center;
 }
+
+.settings-row .color-input {
+    width: 12;
+    margin: 0 1;
+    background: $panel;
+}
+
+.settings-row .color-preview {
+    width: 3;
+    height: 1;
+    content-align: center middle;
+    text-style: bold;
+    background: $panel;
+    border: round $boost;
+}
+
+.settings-row .btn-danger {
+    background: $error-darken-1;
+    color: $text;
+    border: round $error;
+}
+
+.settings-row .btn-danger:hover {
+    background: $error;
+    color: $text;
+    border: round $error-lighten-1;
+}

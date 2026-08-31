@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish to AUR (without v prefix, e.g., 2.1.0)'
+        required: false
 
 permissions:
   contents: write
@@ -78,3 +83,75 @@ jobs:
 
       - name: Publish to PyPI
         run: uv publish
+
+  aur-publish:
+    name: Publish to AUR
+    needs:
+      - release-please
+      - build
+    if: always() && (needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check AUR credentials
+        id: check-secrets
+        env:
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_KEY" ]; then
+            echo "::warning::AUR_SSH_PRIVATE_KEY secret is not configured. Skipping AUR publishing."
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine version
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ -n "${{ needs.release-please.outputs.tag_name }}" ]; then
+            VERSION="${{ needs.release-please.outputs.tag_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="$(sed -n 's/^pkgver=//p' AUR/PKGBUILD | tr -d "'" | tr -d '"')"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
+
+      - name: Prepare PKGBUILD
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAR_URL="https://github.com/luiisca/pomlock/archive/refs/tags/v${VERSION}.tar.gz"
+          
+          # Download release tarball and compute BLAKE2b hash
+          B2SUM=$(curl -sL "$TAR_URL" | b2sum | awk '{print $1}')
+          
+          if [ -z "$B2SUM" ] || [ ${#B2SUM} -ne 128 ]; then
+            echo "::error::Failed to calculate BLAKE2b checksum for $TAR_URL"
+            exit 1
+          fi
+          
+          sed -e "s/^pkgver=.*/pkgver=${VERSION}/" \
+              -e "s/^pkgrel=.*/pkgrel=1/" \
+              -e "s/^b2sums=.*/b2sums=('${B2SUM}')/" \
+              AUR/PKGBUILD > PKGBUILD
+          
+          echo "Prepared PKGBUILD:"
+          cat PKGBUILD
+
+      - name: Publish to AUR
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        with:
+          pkgname: pomlock
+          pkgbuild: ./PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to version ${{ steps.version.outputs.version }}"
+          force_push: true

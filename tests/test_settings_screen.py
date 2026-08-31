@@ -28,7 +28,7 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.temp_dir.cleanup()
 
-    async def test_settings_screen_navigation_and_autocalc(self):
+    async def test_settings_screen_navigation_and_manual_goals(self):
         app = PomlockApp(settings=self.settings, history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -49,12 +49,24 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             yearly_inp.value = ""
             await pilot.pause()
 
-            # Fill daily goal with 8h -> monthly should auto-calc to 176h (8 * 22), yearly to 2080h (8 * 260)
+            # Fill daily goal with 8h (manual entry only - no auto calculation)
             daily_inp.value = "8h"
             await pilot.pause()
 
-            self.assertEqual(monthly_inp.value, "176h")
-            self.assertEqual(yearly_inp.value, "2080h")
+            # Monthly and yearly should remain empty (no auto calculation)
+            self.assertEqual(monthly_inp.value, "")
+            self.assertEqual(yearly_inp.value, "")
+
+            # Fill monthly goal manually
+            monthly_inp.value = "176h"
+            await pilot.pause()
+
+            # Yearly should remain empty (no auto calculation from monthly)
+            self.assertEqual(yearly_inp.value, "")
+
+            # Fill yearly goal manually
+            yearly_inp.value = "2080h"
+            await pilot.pause()
 
             # Save goals for current activity ("all")
             btn_save = screen.query_one("#btn-save-goals", Button)
