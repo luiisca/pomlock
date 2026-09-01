@@ -118,12 +118,10 @@ class StreakCard(Vertical):
             current_day = week_start + timedelta(days=i)
             day_name = current_day.strftime("%a")  # Mon, Tue, etc.
             # Determine if the day is done, missed, or pending
+            # Determine logical status (done, miss, pending)
             if current_day > date.today():
-                # Future day: pending
-                icon = "·"
-                status_class = "status-pending"
+                logical_status = "pending"
             else:
-                # Past or today: check if goals are met
                 focus_by_activity = self._history_store.get_period_focus_by_activity(
                     period=GoalPeriod.DAILY, target_date=current_day
                 )
@@ -137,12 +135,29 @@ class StreakCard(Vertical):
                         if focused_minutes < daily_goal:
                             all_goals_met = False
                             break
-                if all_goals_met:
+                logical_status = "done" if all_goals_met else "miss"
+            # Map logical_status to visual icon based on user setting
+            style = (self._settings or getattr(self.app, "settings", {})).get("streak_indicator_style", "icon")
+            if style == "color-box":
+                if logical_status == "done":
+                    icon = "🟩"
+                    status_class = "status-done"
+                elif logical_status == "miss":
+                    icon = "🟥"
+                    status_class = "status-miss"
+                else:
+                    icon = "⬜"
+                    status_class = "status-pending"
+            else:
+                if logical_status == "done":
                     icon = "✓"
                     status_class = "status-done"
-                else:
+                elif logical_status == "miss":
                     icon = "✗"
                     status_class = "status-miss"
+                else:
+                    icon = "·"
+                    status_class = "status-pending"
             days.append((day_name, icon, status_class))
 
         # Week day check indicators

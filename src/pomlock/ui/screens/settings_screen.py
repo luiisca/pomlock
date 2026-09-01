@@ -320,6 +320,15 @@ class SettingsScreen(Screen):
                             classes="settings-input",
                             value=self.app.settings.get("callback", ""),
                         )
+                    # New: Streak Indicator Style selector
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Streak Indicator Style:", classes="settings-label")
+                        yield Select(
+                            [("Icon", "icon"), ("Color Box", "color-box")],
+                            value=self.app.settings.get("streak_indicator_style", "icon"),
+                            id="select-streak-style",
+                            classes="settings-select",
+                        )
 
                     with Horizontal(classes="settings-btn-row"):
                         yield Button(
@@ -1049,6 +1058,11 @@ class SettingsScreen(Screen):
         self.app.settings["callback"] = self.query_one(
             "#input-callback",
             Input,
+        ).value
+        # Save new streak indicator style
+        self.app.settings["streak_indicator_style"] = self.query_one(
+            "#select-streak-style",
+            Select,
         ).value
 
         self._write_general_config()
