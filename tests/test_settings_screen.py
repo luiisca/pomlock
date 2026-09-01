@@ -7,6 +7,7 @@ from textual.widgets import Button, Input, Select
 from pomlock.history_store import HistoryStore
 from pomlock.ui.app import PomlockApp
 from pomlock.ui.screens.settings_screen import SettingsScreen
+import configparser
 
 
 class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
@@ -107,3 +108,122 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             # Check selected in dropdown
             select = screen.query_one("#activity-select", Select)
             self.assertEqual(select.value, "swimming")
+
+    async def test_settings_general_settings_load_and_save(self):
+        """Test that general settings are correctly loaded from app settings and saved to config file."""
+        # Set up settings with custom values for the new fields
+        custom_settings = {
+            "pomodoro": 25,
+            "short_break": 5,
+            "long_break": 15,
+            "cycles": 4,
+            "activity": "coding",
+            "block_input": True,
+            "overlay": True,
+            "notify": True,
+            "break_notify_msg": "Custom break message",
+            "long_break_notify_msg": "Custom long break message",
+            "pomo_notify_msg": "Custom pomodoro message",
+            "callback": "/path/to/script.sh",
+            "overlay_font_size": 60,
+            "overlay_color": "#FF0000",
+            "overlay_bg_color": "#0000FF",
+            "overlay_opacity": 0.5,
+            "config_file": str(Path(self.temp_dir.name) / "test.conf"),
+        }
+        app = PomlockApp(settings=custom_settings, history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            # Switch to settings screen
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+
+            # Check that the input fields are populated with the custom settings
+            self.assertEqual(screen.query_one("#input-break-notify-msg", Input).value, "Custom break message")
+            self.assertEqual(screen.query_one("#input-long-break-notify-msg", Input).value, "Custom long break message")
+            self.assertEqual(screen.query_one("#input-pomo-notify-msg", Input).value, "Custom pomodoro message")
+            self.assertEqual(screen.query_one("#input-callback", Input).value, "/path/to/script.sh")
+            self.assertEqual(screen.query_one("#input-overlay-font-size", Input).value, "60")
+            self.assertEqual(screen.query_one("#input-overlay-color", Input).value, "#FF0000")
+            self.assertEqual(screen.query_one("#input-overlay-bg-color", Input).value, "#0000FF")
+            self.assertEqual(screen.query_one("#input-overlay-opacity", Input).value, "0.5")
+
+            # Check that the selects are set correctly
+            self.assertEqual(screen.query_one("#select-overlay", Select).value, "true")
+            self.assertEqual(screen.query_one("#select-block-input", Select).value, "true")
+            self.assertEqual(screen.query_one("#select-notify", Select).value, "true")
+
+            # Modify some values
+            break_notify_input = screen.query_one("#input-break-notify-msg", Input)
+            break_notify_input.value = "New break message"
+            await pilot.pause()
+
+            overlay_font_size_input = screen.query_one("#input-overlay-font-size", Input)
+            overlay_font_size_input.value = "72"
+            await pilot.pause()
+
+            # Click the Save General Settings button
+            save_btn = screen.query_one("#btn-save-general", Button)
+            save_btn.press()
+            await pilot.pause()
+
+            # Check that the app settings have been updated
+            self.assertEqual(app.settings["break_notify_msg"], "New break message")
+            self.assertEqual(app.settings["overlay_font_size"], 72)
+
+            # Check that the config file has been updated
+            config_path = Path(app.settings.get("config_file"))
+            self.assertTrue(config_path.exists())
+            conf = configparser.ConfigParser()
+            conf.read(config_path)
+            self.assertTrue(conf.has_section("general"))
+            self.assertEqual(conf.get("general", "break_notify_msg"), "New break message")
+            self.assertEqual(conf.get("general", "overlay_font_size"), "72")
+            self.assertEqual(conf.get("general", "overlay_color"), "#FF0000")
+            self.assertEqual(conf.get("general", "overlay_bg_color"), "#0000FF")
+            self.assertEqual(conf.get("general", "overlay_opacity"), "0.5")  # unchanged
+            self.assertEqual(conf.get("general", "overlay"), "true")
+            self.assertEqual(conf.get("general", "block_input"), "true")
+            self.assertEqual(conf.get("general", "notify"), "true")
+
+    async def test_settings_general_settings_defaults(self):
+        """Test that default values are used when settings are not provided."""
+        # Use minimal settings (only the required ones)
+        minimal_settings = {
+            "pomodoro": 25,
+            "short_break": 5,
+            "long_break": 15,
+            "cycles": 4,
+            "activity": "coding",
+            # block_input, overlay, notify will default to True, True, True? Actually, from Settings class, defaults are True, True, True?
+            # But note: in the Settings class, the CLI_ARGS have defaults: block_input=True, overlay=True, notify=True.
+            # However, we are not setting them in minimal_settings, so they will come from the Settings class defaults.
+            # We'll rely on the Settings class to provide defaults.
+        }
+        app = PomlockApp(settings=minimal_settings, history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+
+            # Check that the input fields have the default values
+            self.assertEqual(screen.query_one("#input-break-notify-msg", Input).value, "Time for a break!")
+            self.assertEqual(screen.query_one("#input-long-break-notify-msg", Input).value, "Time for a long break!")
+            self.assertEqual(screen.query_one("#input-pomo-notify-msg", Input).value, "Time for a pomodoro!")
+            self.assertEqual(screen.query_one("#input-callback", Input).value, "")
+            self.assertEqual(screen.query_one("#input-overlay-font-size", Input).value, "48")
+            self.assertEqual(screen.query_one("#input-overlay-color", Input).value, "white")
+            self.assertEqual(screen.query_one("#input-overlay-bg-color", Input).value, "black")
+            self.assertEqual(screen.query_one("#input-overlay-opacity", Input).value, "0.8")
+
+            # Check that the selects are set to the default values (from minimal_settings, they are not set, so they come from Settings class defaults)
+            # The Settings class defaults for block_input, overlay, notify are True, True, True.
+            self.assertEqual(screen.query_one("#select-overlay", Select).value, "true")
+            self.assertEqual(screen.query_one("#select-block-input", Select).value, "true")
+            self.assertEqual(screen.query_one("#select-notify", Select).value, "true")

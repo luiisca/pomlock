@@ -2,10 +2,10 @@ from typing import Optional
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
+from textual.widgets import Footer
 
 from ...constants import GoalPeriod, StatsView
 from ..widgets.activity_list import ActivityListCard
-from ..widgets.footer_bar import FooterBar
 from ..widgets.goals_card import GoalsCard
 from ..widgets.nav_bar import TopNavBar
 from ..widgets.placeholders import (
@@ -42,10 +42,7 @@ class StatsScreen(Screen):
             with Horizontal(id="stats-body-container", classes="stats-body-layout"):
                 yield from self._get_view_widgets(self._current_view)
 
-            yield FooterBar(
-                bindings=[("z", "zen")],
-                id="stats-footer",
-            )
+            yield Footer()
 
     def on_stats_header_view_selected(self, event: StatsHeader.ViewSelected) -> None:
         """Handle view change requests from tabs."""
@@ -94,22 +91,26 @@ class StatsScreen(Screen):
         """Return the widgets corresponding to the selected view with respective goals."""
         if view == StatsView.TODAY:
             return [
-                Vertical(TodayStatsWidget(), GoalsCard(period=GoalPeriod.DAILY), classes="stats-left-area"),
+                Vertical(TodayStatsWidget(), GoalsCard(
+                    period=GoalPeriod.DAILY), classes="stats-left-area"),
                 Vertical(ActivityListCard(), classes="stats-right-area"),
             ]
         if view == StatsView.WEEK:
             return [
                 Vertical(WeekStatsWidget(), classes="stats-left-area"),
-                Vertical(GoalsCard(period=GoalPeriod.WEEKLY), classes="stats-right-area"),
+                Vertical(GoalsCard(period=GoalPeriod.WEEKLY),
+                         classes="stats-right-area"),
             ]
         if view == StatsView.MONTH:
             return [
                 Vertical(MonthStatsWidget(), classes="stats-left-area"),
-                Vertical(GoalsCard(period=GoalPeriod.MONTHLY), classes="stats-right-area"),
+                Vertical(GoalsCard(period=GoalPeriod.MONTHLY),
+                         classes="stats-right-area"),
             ]
         if view == StatsView.YEAR:
             return [
                 Vertical(YearStatsWidget(), classes="stats-left-area"),
-                Vertical(GoalsCard(period=GoalPeriod.YEARLY), classes="stats-right-area"),
+                Vertical(GoalsCard(period=GoalPeriod.YEARLY),
+                         classes="stats-right-area"),
             ]
         return [TodayStatsWidget()]

@@ -8,7 +8,6 @@ from pomlock.ui.app import PomlockApp
 from pomlock.ui.screens.main_screen import MainScreen
 from pomlock.ui.screens.stats_screen import StatsScreen
 from pomlock.ui.widgets.activity_list import ActivityListCard
-from pomlock.ui.widgets.footer_bar import FooterBar
 from pomlock.ui.widgets.goals_card import GoalsCard
 from pomlock.ui.widgets.stats_chart_card import StatsChartCard
 from pomlock.ui.widgets.timer_card import TimerCard
@@ -174,15 +173,6 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertFalse(timer_card.has_class("zen-mode"))
             self.assertFalse(app.screen.has_class("zen-active"))
-
-    async def test_footer_bar_bindings(self):
-        app = PomlockApp(settings=self.settings,
-                         history_store=self.history_store)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            footer = app.query_one(FooterBar)
-            labels = footer.query(Label)
-            self.assertTrue(len(labels) > 0)
 
     async def test_ctrl_q_finalizes_active_block(self):
         app = PomlockApp(settings=self.settings,

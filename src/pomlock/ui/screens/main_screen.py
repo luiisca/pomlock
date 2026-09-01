@@ -5,7 +5,6 @@ from textual.screen import Screen
 from textual.widgets import Footer
 
 from ..widgets.activity_list import ActivityListCard
-from ..widgets.footer_bar import FooterBar
 from ..widgets.goals_card import GoalsCard
 from ..widgets.nav_bar import TopNavBar
 from ..widgets.stats_chart_card import StatsChartCard
@@ -28,26 +27,23 @@ class MainScreen(Screen):
             with Horizontal(classes="main-content-layout"):
                 # Left major column (Timer + Goals & Chart)
                 with Vertical(classes="main-left-column"):
-                    timer_card = TimerCard(activity=self._activity, cycles_total=self._cycles)
-                    timer_card.add_class("with-title")
+                    timer_card = TimerCard(
+                        activity=self._activity, cycles_total=self._cycles)
                     yield timer_card
 
                     with Horizontal(classes="main-bottom-row"):
                         goals_card = GoalsCard(active_activity=self._activity)
-                        goals_card.add_class("with-title")
                         yield goals_card
                         yield StatsChartCard()
 
                 # Right column (Streak + Activity list)
                 with Vertical(classes="main-right-column"):
                     streak_card = StreakCard()
-                    streak_card.add_class("with-title")
                     yield streak_card
                     activity_list = ActivityListCard()
-                    activity_list.add_class("with-title")
                     yield activity_list
 
-            yield FooterBar()
+            yield Footer()
 
     def toggle_zen(self) -> None:
         """Toggle zen mode on the timer card."""

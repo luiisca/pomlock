@@ -69,8 +69,10 @@ class ThickProgressBar(Widget):
         try:
             vars = self.app.get_css_variables()
             accent = str(vars.get("accent", "#FEA62B"))
-            track_bg = str(vars.get("panel-lighten-1", vars.get("panel", "#343F49")))
-            track_fg = str(vars.get("panel-lighten-3", vars.get("text-muted", "#69747D")))
+            track_bg = str(vars.get("panel-lighten-1",
+                           vars.get("panel", "#343F49")))
+            track_fg = str(vars.get("panel-lighten-3",
+                           vars.get("text-muted", "#69747D")))
         except Exception:
             accent = "#FEA62B"
             track_bg = "#343F49"
@@ -113,7 +115,7 @@ class TimerCard(Vertical):
         self._cycles_total = cycles_total
 
     def compose(self) -> ComposeResult:
-        yield Label("timer", classes="card-title")
+        self.border_title = "timer"
 
         # Main digital clock display
         with Horizontal(classes="timer-display-row"):

@@ -1,7 +1,7 @@
 from typing import Optional
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Select, Footer
 from textual.binding import Binding
@@ -15,7 +15,6 @@ from ...constants import (
 )
 from ...history_store import HistoryStore
 from ...utils import parse_duration_string
-from ..widgets.footer_bar import FooterBar
 from ..widgets.nav_bar import TopNavBar
 import configparser
 from pathlib import Path
@@ -27,6 +26,14 @@ def _format_hours_str(minutes: int) -> str:
     if m == 0:
         return f"{h}h"
     return f"{h}h {m}m"
+
+
+class TitledVertical(Vertical):
+    """Vertical container with a Textual border title."""
+
+    def __init__(self, title: str, **kwargs):
+        super().__init__(**kwargs)
+        self.border_title = title
 
 
 class SettingsScreen(Screen):
@@ -44,133 +51,388 @@ class SettingsScreen(Screen):
     def __init__(self):
         super().__init__()
         self._selected_activity: str = "all"
-        self.OLIVE_GARDEN_PALETTE = ["#606c38","#283618","#fefae0","#dda15e","#bc6c25"]
-        self._timer_settings_loaded = False
+        self._selected_preset: str | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="app-shell"):
             yield TopNavBar(active_tab="settings", id="settings-top-navbar")
+            with VerticalScroll(classes="settings-scroll"):
+                # ---------------------------------------------------------
+                # Activities
+                # ---------------------------------------------------------
+                with TitledVertical("activities", classes="card-container settings-container"):
+                    with Vertical(classes="settings-group"):
+                        yield Label("Activity", classes="settings-section-title")
+                        with Horizontal(classes="activity-selector-row"):
+                            yield Select(
+                                [("All / Total", "all")],
+                                value="all",
+                                allow_blank=False,
+                                id="activity-select",
+                                classes="settings-select activity-select",
+                            )
+                            yield Input(
+                                placeholder="#FF5733",
+                                id="input-activity-color",
+                                classes="settings-input color-input",
+                            )
+                            yield Label(
+                                "■■■■",
+                                id="color-preview",
+                                classes="color-preview",
+                            )
+                            yield Button(
+                                "Delete Activity",
+                                id="btn-delete-activity",
+                                classes="btn-danger",
+                                disabled=True,
+                            )
 
-            with Vertical(classes="card-container settings-container"):
-                yield Label("Activity Configuration", classes="card-tag")
+                    with Vertical(classes="settings-group"):
+                        yield Label(
+                            "Create activity",
+                            classes="settings-section-title",
+                        )
 
-                # Activity Selector Row with Color and Delete
-                with Horizontal(classes="settings-row"):
-                    yield Label("Activity:", classes="settings-label")
-                    yield Select(
-                        [("All / Total", "all")],
-                        value="all",
-                        allow_blank=False,
-                        id="activity-select",
-                        classes="settings-select",
-                    )
-                    yield Input(
-                        placeholder="#FF5733",
-                        id="input-activity-color",
-                        classes="settings-input color-input",
-                    )
-                    yield Label(id="color-preview", classes="color-preview")
-                    yield Button("Delete", id="btn-delete-activity", classes="btn-danger", disabled=True)
-                    yield Button("Olive Palette", id="btn-olive-palette", classes="btn-secondary")
+                        with Horizontal(classes="activity-create-row"):
+                            yield Input(
+                                placeholder="Type new activity name...",
+                                id="input-new-activity",
+                                classes="settings-input",
+                            )
+                            yield Button(
+                                "Add Activity",
+                                id="btn-add-activity",
+                                classes="btn-secondary",
+                            )
 
-                # Add New Activity Row
-                with Horizontal(classes="settings-row"):
-                    yield Label("New Activity:", classes="settings-label")
-                    yield Input(
-                        placeholder="Type new activity name...",
-                        id="input-new-activity",
-                        classes="settings-input",
-                    )
-                    yield Button("Add", id="btn-add-activity", classes="btn-secondary")
+                    with Vertical(classes="settings-group goals-group"):
+                        yield Label("Goals", classes="settings-section-title")
 
-                # Daily Goal Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Daily Goal:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 8h or 480m",
-                        id="input-daily-goal",
-                        classes="settings-input",
-                    )
+                        with Horizontal(classes="goals-row"):
+                            with Vertical(classes="goal-field"):
+                                yield Label("Daily")
+                                yield Input(
+                                    placeholder="e.g. 8h",
+                                    id="input-daily-goal",
+                                    classes="settings-input",
+                                )
+                            with Vertical(classes="goal-field"):
+                                yield Label("Weekly")
+                                yield Input(
+                                    placeholder="e.g. 40h",
+                                    id="input-weekly-goal",
+                                    classes="settings-input",
+                                )
 
-                # Monthly Goal Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Monthly Goal:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 176h",
-                        id="input-monthly-goal",
-                        classes="settings-input",
-                    )
+                            with Vertical(classes="goal-field"):
+                                yield Label("Monthly")
+                                yield Input(
+                                    placeholder="e.g. 176h",
+                                    id="input-monthly-goal",
+                                    classes="settings-input",
+                                )
 
-                # Yearly Goal Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Yearly Goal:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 2080h",
-                        id="input-yearly-goal",
-                        classes="settings-input",
-                    )
+                            with Vertical(classes="goal-field"):
+                                yield Label("Yearly")
+                                yield Input(
+                                    placeholder="e.g. 2080h",
+                                    id="input-yearly-goal",
+                                    classes="settings-input",
+                                )
 
-                # Action Buttons
-                with Horizontal(classes="settings-btn-row"):
-                    yield Button("Save Goals", id="btn-save-goals", classes="btn-primary")
+                    with Horizontal(classes="settings-btn-row"):
+                        yield Button(
+                            "Save Goals",
+                            id="btn-save-goals",
+                            classes="btn-primary",
+                        )
 
-                yield Label("", id="settings-status-msg", classes="settings-status")
-
-                # Timer Configuration Section
-                yield Label("Timer Configuration", classes="card-tag")
-
-                # Pomodoro Length Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Pomodoro:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 25m or 1500s",
-                        id="input-pomodoro",
-                        classes="settings-input",
-                    )
-
-                # Short Break Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Short Break:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 5m or 300s",
-                        id="input-short-break",
-                        classes="settings-input",
-                    )
-
-                # Long Break Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Long Break:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 20m or 1200s",
-                        id="input-long-break",
-                        classes="settings-input",
-                    )
-
-                # Cycles Input
-                with Horizontal(classes="settings-row"):
-                    yield Label("Cycles:", classes="settings-label")
-                    yield Input(
-                        placeholder="e.g. 4",
-                        id="input-cycles",
-                        classes="settings-input",
+                    yield Label(
+                        "",
+                        id="settings-status-msg",
+                        classes="settings-status",
                     )
 
-                # Timer Action Buttons
-                with Horizontal(classes="settings-btn-row"):
-                    yield Button("Save Timer Settings", id="btn-save-timer", classes="btn-primary")
-                    yield Button("Apply Standard Preset", id="btn-standard-preset", classes="btn-secondary")
+                # ---------------------------------------------------------
+                # Presets
+                # ---------------------------------------------------------
+                with TitledVertical("presets", classes="card-container settings-container"):
+                    with Vertical(classes="settings-group"):
+                        yield Label("Preset", classes="settings-section-title")
 
-            yield FooterBar()
+                        with Horizontal(classes="preset-selector-row"):
+                            yield Select(
+                                [("Select...", "")],
+                                value="",
+                                allow_blank=True,
+                                id="preset-select",
+                                classes="settings-select",
+                            )
+                            yield Button(
+                                "Add Preset",
+                                id="btn-add-preset",
+                                classes="btn-secondary",
+                            )
+                            yield Button(
+                                "Delete Preset",
+                                id="btn-delete-preset",
+                                classes="btn-danger",
+                                disabled=True,
+                            )
+
+                    with Vertical(classes="settings-group"):
+                        yield Label(
+                            "New preset",
+                            classes="settings-section-title",
+                        )
+
+                        with Horizontal(classes="preset-name-row"):
+                            yield Input(
+                                placeholder="New preset name",
+                                id="input-preset-name",
+                                classes="settings-input",
+                            )
+
+                    with Vertical(classes="settings-group timer-values-group"):
+                        yield Label("Timer", classes="settings-section-title")
+
+                        with Horizontal(classes="preset-values-row"):
+                            with Vertical(classes="preset-field"):
+                                yield Label("Pomodoro")
+                                yield Input(
+                                    placeholder="25m",
+                                    id="input-preset-pomodoro",
+                                    classes="settings-input",
+                                )
+
+                            with Vertical(classes="preset-field"):
+                                yield Label("Short Break")
+                                yield Input(
+                                    placeholder="5m",
+                                    id="input-preset-short",
+                                    classes="settings-input",
+                                )
+
+                            with Vertical(classes="preset-field"):
+                                yield Label("Long Break")
+                                yield Input(
+                                    placeholder="20m",
+                                    id="input-preset-long",
+                                    classes="settings-input",
+                                )
+
+                            with Vertical(classes="preset-field"):
+                                yield Label("Cycles")
+                                yield Input(
+                                    placeholder="4",
+                                    id="input-preset-cycles",
+                                    classes="settings-input",
+                                )
+
+                    with Horizontal(classes="settings-btn-row"):
+                        yield Button(
+                            "Save Preset",
+                            id="btn-save-preset",
+                            classes="btn-primary",
+                        )
+
+                # ---------------------------------------------------------
+                # General settings
+                # ---------------------------------------------------------
+                with TitledVertical("general", classes="card-container settings-container"):
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Block Input:", classes="settings-label")
+                        yield Select(
+                            [("True", "true"), ("False", "false")],
+                            value=(
+                                "true"
+                                if self.app.settings.get("block_input", True)
+                                else "false"
+                            ),
+                            id="select-block-input",
+                            classes="settings-select",
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Notify:", classes="settings-label")
+                        yield Select(
+                            [("True", "true"), ("False", "false")],
+                            value=(
+                                "true"
+                                if self.app.settings.get("notify", True)
+                                else "false"
+                            ),
+                            id="select-notify",
+                            classes="settings-select",
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label(
+                            "Break Message:",
+                            classes="settings-label",
+                        )
+                        yield Input(
+                            placeholder="Time for a break!",
+                            id="input-break-notify-msg",
+                            classes="settings-input",
+                            value=self.app.settings.get(
+                                "break_notify_msg",
+                                "Time for a break!",
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label(
+                            "Long Break Message:",
+                            classes="settings-label",
+                        )
+                        yield Input(
+                            placeholder="Time for a long break!",
+                            id="input-long-break-notify-msg",
+                            classes="settings-input",
+                            value=self.app.settings.get(
+                                "long_break_notify_msg",
+                                "Time for a long break!",
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label(
+                            "Pomodoro Message:",
+                            classes="settings-label",
+                        )
+                        yield Input(
+                            placeholder="Time for a pomodoro!",
+                            id="input-pomo-notify-msg",
+                            classes="settings-input",
+                            value=self.app.settings.get(
+                                "pomo_notify_msg",
+                                "Time for a pomodoro!",
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Callback:", classes="settings-label")
+                        yield Input(
+                            placeholder="Path to script",
+                            id="input-callback",
+                            classes="settings-input",
+                            value=self.app.settings.get("callback", ""),
+                        )
+
+                    with Horizontal(classes="settings-btn-row"):
+                        yield Button(
+                            "Save General Settings",
+                            id="btn-save-general",
+                            classes="btn-primary",
+                        )
+
+                # ---------------------------------------------------------
+                # Overlay settings
+                # ---------------------------------------------------------
+                with TitledVertical("overlay", classes="card-container settings-container"):
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Enabled:", classes="settings-label")
+                        yield Select(
+                            [("True", "true"), ("False", "false")],
+                            value=(
+                                "true"
+                                if self.app.settings.get("overlay", True)
+                                else "false"
+                            ),
+                            id="select-overlay",
+                            classes="settings-select",
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Font Size:", classes="settings-label")
+                        yield Input(
+                            placeholder="48",
+                            id="input-overlay-font-size",
+                            classes="settings-input",
+                            value=str(
+                                self.app.settings.get("overlay_font_size", 48)
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Text Color:", classes="settings-label")
+                        yield Input(
+                            placeholder="white",
+                            id="input-overlay-color",
+                            classes="settings-input",
+                            value=self.app.settings.get(
+                                "overlay_color",
+                                "white",
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label(
+                            "Background Color:",
+                            classes="settings-label",
+                        )
+                        yield Input(
+                            placeholder="black",
+                            id="input-overlay-bg-color",
+                            classes="settings-input",
+                            value=self.app.settings.get(
+                                "overlay_bg_color",
+                                "black",
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-row"):
+                        yield Label("Opacity:", classes="settings-label")
+                        yield Input(
+                            placeholder="0.8",
+                            id="input-overlay-opacity",
+                            classes="settings-input",
+                            value=str(
+                                self.app.settings.get("overlay_opacity", 0.8)
+                            ),
+                        )
+
+                    with Horizontal(classes="settings-btn-row"):
+                        yield Button(
+                            "Save Overlay Settings",
+                            id="btn-save-overlay",
+                            classes="btn-primary",
+                        )
+
+            yield Footer()
 
     def on_mount(self) -> None:
-        """Load activities and current goals on mount."""
+        """Load activities, presets, and current goals on mount."""
         self._refresh_activity_select()
         self._load_activity_goals(self._selected_activity)
         self._load_activity_color(self._selected_activity)
-        self._load_timer_settings()
+        self._load_presets()
         self._timer_settings_loaded = True
 
     def _refresh_activity_select(self) -> None:
+        """Populate the Select dropdown with all activities currently in the database."""
+        history_store = getattr(
+            self.app, "history_store", None) or HistoryStore()
+        activities = history_store.get_activities()
+
+        options = [("All / Total", "all")]
+        for act in activities:
+            name = act.get("name", "").lower()
+            if name and name not in ("all", "total"):
+                display_label = name.title()
+                options.append((display_label, name))
+
+        try:
+            sel = self.query_one("#activity-select", Select)
+            sel.set_options(options)
+            if self._selected_activity in [opt[1] for opt in options]:
+                sel.value = self._selected_activity
+            else:
+                sel.value = "all"
+        except Exception:
+            pass
         """Populate the Select dropdown with all activities currently in the database."""
         history_store = getattr(
             self.app, "history_store", None) or HistoryStore()
@@ -252,28 +514,29 @@ class SettingsScreen(Screen):
             # Validate hex color format
             if color_value and (color_value.startswith('#') and len(color_value) == 7):
                 try:
-                    int(color_value[1:], 16)  # Validate it's a valid hex number
+                    # Validate it's a valid hex number
+                    int(color_value[1:], 16)
                     preview_label = self.query_one("#color-preview", Label)
-                    preview_label.update("■")
+                    preview_label.update("■■■■")
                     preview_label.styles.background = color_value
                     preview_label.styles.color = color_value
                 except ValueError:
                     # Invalid hex, reset preview
                     preview_label = self.query_one("#color-preview", Label)
-                    preview_label.update("")
+                    preview_label.update("■■■■")
                     preview_label.styles.background = "transparent"
                     preview_label.styles.color = "initial"
             else:
                 # Invalid or empty color, reset preview
                 preview_label = self.query_one("#color-preview", Label)
-                preview_label.update("")
+                preview_label.update("■■■■")
                 preview_label.styles.background = "transparent"
                 preview_label.styles.color = "initial"
         except Exception:
             # If anything goes wrong, reset preview safely
             try:
                 preview_label = self.query_one("#color-preview", Label)
-                preview_label.update("")
+                preview_label.update("■■■■")
                 preview_label.styles.background = "transparent"
                 preview_label.styles.color = "initial"
             except Exception:
@@ -289,42 +552,50 @@ class SettingsScreen(Screen):
     @on(Button.Pressed, "#btn-save-goals")
     def on_save_pressed(self) -> None:
         """Persist entered goals and color to SQLite database."""
-        daily_inp = self.query_one("#input-daily-goal", Input)
-        monthly_inp = self.query_one("#input-monthly-goal", Input)
-        yearly_inp = self.query_one("#input-yearly-goal", Input)
-        color_inp = self.query_one("#input-activity-color", Input)
+        try:
+            daily_inp = self.query_one("#input-daily-goal", Input)
+            weekly_inp = self.query_one("#input-weekly-goal", Input)
+            monthly_inp = self.query_one("#input-monthly-goal", Input)
+            yearly_inp = self.query_one("#input-yearly-goal", Input)
+            color_inp = self.query_one("#input-activity-color", Input)
 
-        daily_mins = parse_duration_string(daily_inp.value)
-        monthly_mins = parse_duration_string(monthly_inp.value)
-        yearly_mins = parse_duration_string(yearly_inp.value)
-        color_value = color_inp.value.strip()
+            daily_mins = parse_duration_string(daily_inp.value)
+            weekly_mins = parse_duration_string(weekly_inp.value)
+            monthly_mins = parse_duration_string(monthly_inp.value)
+            yearly_mins = parse_duration_string(yearly_inp.value)
+            color_value = color_inp.value.strip()
 
-        # Validate color input
-        if color_value and (not color_value.startswith('#') or len(color_value) != 7):
-            try:
-                int(color_value[1:], 16)
-            except (ValueError, IndexError):
-                color_value = ""  # Invalid color, save as None
+            # Validate color input
+            if color_value and (not color_value.startswith('#') or len(color_value) != 7):
+                try:
+                    int(color_value[1:], 16)
+                except (ValueError("Color must be a 6-digit hex value such as #FF5733"), IndexError):
+                    color_value = ""  # Invalid color, save as None
 
-        weekly_mins = daily_mins * WORK_DAYS_PER_WEEK if daily_mins > 0 else 0
+            if daily_mins < 0 or monthly_mins < 0 or yearly_mins < 0:
+                raise ValueError("Goals cannot be negative")
 
-        history_store = getattr(
-            self.app, "history_store", None) or HistoryStore()
-        history_store.save_activity(
-            name=self._selected_activity,
-            daily_goal=daily_mins,
-            weekly_goal=weekly_mins,
-            monthly_goal=monthly_mins,
-            yearly_goal=yearly_mins,
-            color=color_value if color_value else None,
-        )
+            history_store = getattr(
+                self.app, "history_store", None) or HistoryStore()
+            history_store.save_activity(
+                name=self._selected_activity,
+                daily_goal=daily_mins,
+                weekly_goal=weekly_mins,
+                monthly_goal=monthly_mins,
+                yearly_goal=yearly_mins,
+                color=color_value if color_value else None,
+            )
 
-        status_lbl = self.query_one("#settings-status-msg", Label)
-        status_lbl.update(f"✓ Saved goals and color for '{self._selected_activity}'")
+            status_lbl = self.query_one("#settings-status-msg", Label)
+            status_lbl.update(f"✓ Saved goals and color for '{
+                              self._selected_activity}'")
 
-        if hasattr(self.app, "notify"):
-            self.app.notify(f"Saved goals and color for {
-                            self._selected_activity}", title="Settings Updated")
+            if hasattr(self.app, "notify"):
+                self.app.notify(f"Saved goals and color for {
+                                self._selected_activity}", title="Settings Updated")
+        except Exception as e:
+            status_lbl = self.query_one("#settings-status-msg", Label)
+            status_lbl.update(f"✗ Failed to save goals: {e}")
 
     @on(Button.Pressed, "#btn-delete-activity")
     def on_delete_activity_pressed(self) -> None:
@@ -363,57 +634,6 @@ class SettingsScreen(Screen):
         if hasattr(self.app, "notify"):
             self.app.notify("Activity deleted", title="Settings Updated")
 
-    @on(Button.Pressed, "#btn-olive-palette")
-    def on_olive_palette_pressed(self) -> None:
-        """Apply the Olive Garden Feast palette to activities."""
-        history_store = getattr(
-            self.app, "history_store", None) or HistoryStore()
-        activities = history_store.get_activities()
-
-        # Filter out protected activities and "all"
-        activity_names = [
-            act.get("name") for act in activities
-            if act.get("name") not in ["all", "other"] and act.get("name")
-        ]
-
-        if not activity_names:
-            status_lbl = self.query_one("#settings-status-msg", Label)
-            status_lbl.update("✗ No activities to apply palette to")
-            return
-
-        # Apply palette colors: use palette for first N activities, then random for the rest
-        try:
-            with history_store._db._get_connection() as conn:
-                for i, activity_name in enumerate(activity_names):
-                    if i < len(self.OLIVE_GARDEN_PALETTE):
-                        color_value = self.OLIVE_GARDEN_PALETTE[i]
-                    else:
-                        # Generate a random color for extra activities
-                        color_value = "#{:06x}".format(random.randint(0, 0xFFFFFF))
-                    conn.execute(
-                        """
-                        UPDATE activities
-                        SET color = ?
-                        WHERE name = ?
-                        """,
-                        (color_value, activity_name.lower()),
-                    )
-                conn.commit()
-        except Exception as e:
-            status_lbl = self.query_one("#settings-status-msg", Label)
-            status_lbl.update(f"✗ Failed to apply palette: {str(e)}")
-            return
-
-        # Reload the current activity's color
-        self._load_activity_color(self._selected_activity)
-
-        status_lbl = self.query_one("#settings-status-msg", Label)
-        status_lbl.update(f"✓ Applied Olive Garden palette to {len(activity_names)} activities")
-
-        if hasattr(self.app, "notify"):
-            self.app.notify(f"Applied Olive Garden palette to {len(activity_names)} activities",
-                          title="Settings Updated")
-
     @on(Button.Pressed, "#btn-standard-preset")
     def on_standard_preset_pressed(self) -> None:
         """Apply the standard pomodoro preset (25/5/20/4)."""
@@ -432,10 +652,97 @@ class SettingsScreen(Screen):
             status_lbl.update("✓ Applied standard preset (25/5/20/4)")
 
             if hasattr(self.app, "notify"):
-                self.app.notify("Applied standard preset", title="Settings Updated")
+                self.app.notify("Applied standard preset",
+                                title="Settings Updated")
         except Exception as e:
             status_lbl = self.query_one("#settings-status-msg", Label)
             status_lbl.update(f"✗ Failed to apply preset: {str(e)}")
+
+    @on(Select.Changed, "#preset-select")
+    def on_preset_changed(self, event: Select.Changed) -> None:
+        """Load selected preset values into inputs."""
+        if event.value:
+            self._selected_preset = str(event.value)
+            self._load_preset_values(self._selected_preset)
+            # Enable delete button
+            delete_btn = self.query_one("#btn-delete-preset", Button)
+            delete_btn.disabled = False
+        else:
+            self._selected_preset = None
+            # Clear fields
+            self._load_preset_values("")
+            delete_btn = self.query_one("#btn-delete-preset", Button)
+            delete_btn.disabled = True
+
+    @on(Button.Pressed, "#btn-add-preset")
+    def on_add_preset_pressed(self) -> None:
+        """Add a new preset with name from input and values from fields."""
+        name_input = self.query_one("#input-preset-name", Input)
+        name = name_input.value.strip().lower()
+        if not name:
+            return
+        # Gather values
+        pomodoro = self.query_one(
+            "#input-preset-pomodoro", Input).value.strip()
+        short = self.query_one("#input-preset-short", Input).value.strip()
+        long = self.query_one("#input-preset-long", Input).value.strip()
+        cycles = self.query_one("#input-preset-cycles", Input).value.strip()
+        if not all([pomodoro, short, long, cycles]):
+            return
+        # Update settings dict
+        self.app.settings.setdefault("presets", {})[name] = f"{pomodoro.rstrip('m')} {
+            short.rstrip('m')} {long.rstrip('m')} {cycles}"
+        self._selected_preset = name
+        self._write_presets_to_config()
+        self._load_presets()
+        status_lbl = self.query_one("#settings-status-msg", Label)
+        status_lbl.update(f"✓ Added preset '{name}'")
+        if hasattr(self.app, "notify"):
+            self.app.notify(f"Added preset {name}", title="Settings Updated")
+        # Disable add button? keep enabled
+        name_input.value = ""
+
+    @on(Button.Pressed, "#btn-delete-preset")
+    def on_delete_preset_pressed(self) -> None:
+        """Delete the selected preset."""
+        if not self._selected_preset:
+            return
+        # Remove from settings
+        self.app.settings.get("presets", {}).pop(self._selected_preset, None)
+        self._selected_preset = None
+        self._write_presets_to_config()
+        self._load_presets()
+        # Clear fields
+        self._load_preset_values("")
+        status_lbl = self.query_one("#settings-status-msg", Label)
+        status_lbl.update("✓ Preset deleted")
+        if hasattr(self.app, "notify"):
+            self.app.notify("Preset deleted", title="Settings Updated")
+        # Disable delete button
+        delete_btn = self.query_one("#btn-delete-preset", Button)
+        delete_btn.disabled = True
+
+    @on(Button.Pressed, "#btn-save-preset")
+    def on_save_preset_pressed(self) -> None:
+        """Save changes to the selected preset."""
+        if not self._selected_preset:
+            return
+        pomodoro = self.query_one(
+            "#input-preset-pomodoro", Input).value.strip()
+        short = self.query_one("#input-preset-short", Input).value.strip()
+        long = self.query_one("#input-preset-long", Input).value.strip()
+        cycles = self.query_one("#input-preset-cycles", Input).value.strip()
+        if not all([pomodoro, short, long, cycles]):
+            return
+        self.app.settings.setdefault("presets", {})[self._selected_preset] = f"{
+            pomodoro.rstrip('m')} {short.rstrip('m')} {long.rstrip('m')} {cycles}"
+        self._write_presets_to_config()
+        self._load_presets()
+        status_lbl = self.query_one("#settings-status-msg", Label)
+        status_lbl.update(f"✓ Preset '{self._selected_preset}' saved")
+        if hasattr(self.app, "notify"):
+            self.app.notify(
+                f"Preset {self._selected_preset} saved", title="Settings Updated")
 
     @on(Button.Pressed, "#btn-save-timer")
     def on_save_timer_pressed(self) -> None:
@@ -451,17 +758,21 @@ class SettingsScreen(Screen):
         act_data = next((a for a in activities if a.get(
             "name") == activity_name.lower()), None)
         daily_inp = self.query_one("#input-daily-goal", Input)
+        weekly_inp = self.query_one("#input-weekly-goal", Input)
         monthly_inp = self.query_one("#input-monthly-goal", Input)
         yearly_inp = self.query_one("#input-yearly-goal", Input)
 
         if act_data:
             daily_inp.value = _format_hours_str(act_data.get("daily_goal", 0))
+            weekly_inp.value = _format_hours_str(
+                act_data.get("weekly_goal", 0))
             monthly_inp.value = _format_hours_str(
                 act_data.get("monthly_goal", 0))
             yearly_inp.value = _format_hours_str(
                 act_data.get("yearly_goal", 0))
         else:
             daily_inp.value = ""
+            weekly_inp.value = ""
             monthly_inp.value = ""
             yearly_inp.value = ""
 
@@ -496,8 +807,89 @@ class SettingsScreen(Screen):
         # Don't allow deletion of protected activities
         protected_activities = ["all", "other"]
         delete_btn.disabled = activity_name.lower() in protected_activities
+        """Load and display the color for the selected activity."""
+        if activity_name == "all":
+            # Clear color input for "All / Total"
+            color_input = self.query_one("#input-activity-color", Input)
+            color_input.value = ""
+            self._update_color_preview()
+            delete_btn = self.query_one("#btn-delete-activity", Button)
+            delete_btn.disabled = True
+            return
 
-    def _load_timer_settings(self) -> None:
+        history_store = getattr(
+            self.app, "history_store", None) or HistoryStore()
+        activities = history_store.get_activities()
+
+        act_data = next((a for a in activities if a.get(
+            "name") == activity_name.lower()), None)
+
+        color_input = self.query_one("#input-activity-color", Input)
+        if act_data and act_data.get("color"):
+            color_input.value = act_data["color"]
+        else:
+            color_input.value = ""
+
+        self._update_color_preview()
+
+        # Enable delete button for non-system activities
+        delete_btn = self.query_one("#btn-delete-activity", Button)
+        # Don't allow deletion of protected activities
+        protected_activities = ["all", "other"]
+        delete_btn.disabled = activity_name.lower() in protected_activities
+
+    def _load_presets(self) -> None:
+        """Populate the preset selector with available presets."""
+        settings = getattr(self.app, "settings", {})
+        presets = settings.get("presets", {})
+        options = []
+        for name in presets.keys():
+            options.append((name.title(), name))
+        try:
+            sel = self.query_one("#preset-select", Select)
+            sel.set_options(options)
+            # If a preset is already selected and still exists, keep it
+            if self._selected_preset and self._selected_preset in presets:
+                sel.value = self._selected_preset
+                self._load_preset_values(self._selected_preset)
+            else:
+                sel.value = ""
+                self._selected_preset = None
+        except Exception:
+            pass
+
+    def _load_preset_values(self, preset_name: str) -> None:
+        """Load the values of the given preset into the input fields."""
+        settings = getattr(self.app, "settings", {})
+        preset_str = settings.get("presets", {}).get(preset_name, "")
+        parts = preset_str.split()
+        if len(parts) == 4:
+            self.query_one("#input-preset-pomodoro",
+                           Input).value = f"{parts[0]}m"
+            self.query_one("#input-preset-short", Input).value = f"{parts[1]}m"
+            self.query_one("#input-preset-long", Input).value = f"{parts[2]}m"
+            self.query_one("#input-preset-cycles", Input).value = parts[3]
+        else:
+            # Clear fields if malformed
+            self.query_one("#input-preset-pomodoro", Input).value = ""
+            self.query_one("#input-preset-short", Input).value = ""
+            self.query_one("#input-preset-long", Input).value = ""
+            self.query_one("#input-preset-cycles", Input).value = ""
+
+    def _write_presets_to_config(self) -> None:
+        """Persist the current presets dict to the config file."""
+        config_path = Path(self.app.settings.get(
+            "config_file", DEFAULT_CONFIG_FILE))
+        conf = configparser.ConfigParser()
+        if config_path.exists():
+            conf.read(config_path)
+        if not conf.has_section("presets"):
+            conf.add_section("presets")
+        for name, value in self.app.settings.get("presets", {}).items():
+            conf.set("presets", name, str(value))
+        with open(config_path, "w") as f:
+            conf.write(f)
+
         """Load timer settings from the app configuration."""
         if not hasattr(self.app, 'settings'):
             return
@@ -516,9 +908,12 @@ class SettingsScreen(Screen):
         long_min = settings.get("long_break", 20)
         cycles = settings.get("cycles", 1)
 
-        pomo_inp.value = f"{pomo_min}m" if pomo_min >= 1 else f"{pomo_min * 60}s"
-        short_inp.value = f"{short_min}m" if short_min >= 1 else f"{short_min * 60}s"
-        long_inp.value = f"{long_min}m" if long_min >= 1 else f"{long_min * 60}s"
+        pomo_inp.value = f"{
+            pomo_min}m" if pomo_min >= 1 else f"{pomo_min * 60}s"
+        short_inp.value = f"{
+            short_min}m" if short_min >= 1 else f"{short_min * 60}s"
+        long_inp.value = f"{
+            long_min}m" if long_min >= 1 else f"{long_min * 60}s"
         cycles_inp.value = str(cycles)
 
     def _save_timer_settings(self) -> None:
@@ -538,7 +933,8 @@ class SettingsScreen(Screen):
             pomo_mins = parse_duration_string(pomo_inp.value.strip())
             short_mins = parse_duration_string(short_inp.value.strip())
             long_mins = parse_duration_string(long_inp.value.strip())
-            cycles_val = int(cycles_inp.value.strip()) if cycles_inp.value.strip() else 1
+            cycles_val = int(cycles_inp.value.strip()
+                             ) if cycles_inp.value.strip() else 1
 
             # Validate inputs
             if pomo_mins <= 0 or short_mins < 0 or long_mins < 0 or cycles_val <= 0:
@@ -551,7 +947,8 @@ class SettingsScreen(Screen):
             self.app.settings["cycles"] = cycles_val
 
             # Also update the config file
-            config_path = Path(self.app.settings.get("config_file", DEFAULT_CONFIG_FILE))
+            config_path = Path(self.app.settings.get(
+                "config_file", DEFAULT_CONFIG_FILE))
             conf = configparser.ConfigParser()
 
             # Read existing config
@@ -575,8 +972,137 @@ class SettingsScreen(Screen):
             status_lbl.update("✓ Timer settings saved")
 
             if hasattr(self.app, "notify"):
-                self.app.notify("Timer settings saved", title="Settings Updated")
+                self.app.notify("Timer settings saved",
+                                title="Settings Updated")
 
         except Exception as e:
             status_lbl = self.query_one("#settings-status-msg", Label)
             status_lbl.update(f"✗ Failed to save timer settings: {str(e)}")
+
+    def _write_general_config(self) -> None:
+        """Write the current general/overlay settings to the config file."""
+        config_path = Path(
+            self.app.settings.get(
+                "config_file",
+                DEFAULT_CONFIG_FILE,
+            )
+        )
+        conf = configparser.ConfigParser()
+
+        if config_path.exists():
+            conf.read(config_path)
+
+        if not conf.has_section("general"):
+            conf.add_section("general")
+
+        values = {
+            "overlay": str(self.app.settings["overlay"]).lower(),
+            "block_input": str(
+                self.app.settings["block_input"]
+            ).lower(),
+            "notify": str(self.app.settings["notify"]).lower(),
+            "break_notify_msg": self.app.settings["break_notify_msg"],
+            "long_break_notify_msg": self.app.settings[
+                "long_break_notify_msg"
+            ],
+            "pomo_notify_msg": self.app.settings["pomo_notify_msg"],
+            "callback": self.app.settings["callback"],
+            "overlay_font_size": str(
+                self.app.settings["overlay_font_size"]
+            ),
+            "overlay_color": self.app.settings["overlay_color"],
+            "overlay_bg_color": self.app.settings[
+                "overlay_bg_color"
+            ],
+            "overlay_opacity": str(
+                self.app.settings["overlay_opacity"]
+            ),
+        }
+
+        for key, value in values.items():
+            conf.set("general", key, value)
+
+        with open(config_path, "w") as f:
+            conf.write(f)
+
+    @on(Button.Pressed, "#btn-save-general")
+    def on_save_general_pressed(self) -> None:
+        """Save general settings."""
+        self.app.settings["block_input"] = (
+            self.query_one("#select-block-input", Select).value == "true"
+        )
+        self.app.settings["notify"] = (
+            self.query_one("#select-notify", Select).value == "true"
+        )
+        self.app.settings["break_notify_msg"] = self.query_one(
+            "#input-break-notify-msg",
+            Input,
+        ).value
+        self.app.settings["long_break_notify_msg"] = self.query_one(
+            "#input-long-break-notify-msg",
+            Input,
+        ).value
+        self.app.settings["pomo_notify_msg"] = self.query_one(
+            "#input-pomo-notify-msg",
+            Input,
+        ).value
+        self.app.settings["callback"] = self.query_one(
+            "#input-callback",
+            Input,
+        ).value
+
+        self._write_general_config()
+
+        status_lbl = self.query_one("#settings-status-msg", Label)
+        status_lbl.update("✓ General settings saved")
+
+        if hasattr(self.app, "notify"):
+            self.app.notify(
+                "General settings saved",
+                title="Settings Updated",
+            )
+
+    @on(Button.Pressed, "#btn-save-overlay")
+    def on_save_overlay_pressed(self) -> None:
+        """Save overlay settings."""
+        self.app.settings["overlay"] = (
+            self.query_one("#select-overlay", Select).value == "true"
+        )
+
+        try:
+            self.app.settings["overlay_font_size"] = int(
+                self.query_one("#input-overlay-font-size", Input).value
+            )
+        except ValueError:
+            self.app.settings["overlay_font_size"] = 48
+
+        self.app.settings["overlay_color"] = self.query_one(
+            "#input-overlay-color",
+            Input,
+        ).value
+        self.app.settings["overlay_bg_color"] = self.query_one(
+            "#input-overlay-bg-color",
+            Input,
+        ).value
+
+        try:
+            opacity = float(
+                self.query_one("#input-overlay-opacity", Input).value
+            )
+            self.app.settings["overlay_opacity"] = max(
+                0.0,
+                min(1.0, opacity),
+            )
+        except ValueError:
+            self.app.settings["overlay_opacity"] = 0.8
+
+        self._write_general_config()
+
+        status_lbl = self.query_one("#settings-status-msg", Label)
+        status_lbl.update("✓ Overlay settings saved")
+
+        if hasattr(self.app, "notify"):
+            self.app.notify(
+                "Overlay settings saved",
+                title="Settings Updated",
+            )

@@ -16,8 +16,7 @@ class StatsChartCard(Vertical):
         self._week_offset = 0
 
     def compose(self) -> ComposeResult:
-        yield Label("stats", classes="card-title")
-
+        self.border_title = "stats"
         # Timeframe header with interactive navigation arrows
         with Horizontal(classes="stats-nav-header-row"):
             yield Button("◀", id="btn-chart-prev", classes="btn-chart-nav")
@@ -45,8 +44,10 @@ class StatsChartCard(Vertical):
 
     def refresh_chart(self) -> None:
         """Fetch weekly data from HistoryStore and generate 7-column vertical bar chart."""
-        history_store = getattr(self.app, "history_store", None) or HistoryStore()
-        week_label, days_data = history_store.get_weekly_focus_by_day(self._week_offset)
+        history_store = getattr(
+            self.app, "history_store", None) or HistoryStore()
+        week_label, days_data = history_store.get_weekly_focus_by_day(
+            self._week_offset)
 
         # Update date range label
         range_label = self.query_one("#chart-date-range", Label)
@@ -74,7 +75,8 @@ class StatsChartCard(Vertical):
         lines.append("───┴────────────────────────")
 
         # Day numbers row (e.g. 10 11 12 13 14 15 16)
-        day_nums_row = "     " + " ".join(f"{d.day:02d} " for d, _ in days_data)
+        day_nums_row = "     " + \
+            " ".join(f"{d.day:02d} " for d, _ in days_data)
         lines.append(day_nums_row)
 
         chart_label = self.query_one("#stats-ascii-chart", Label)

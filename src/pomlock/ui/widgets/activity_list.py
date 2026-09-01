@@ -78,7 +78,7 @@ class ActivityListCard(Vertical):
         super().__init__(id=id)
 
     def compose(self) -> ComposeResult:
-        yield Label("activity", classes="card-title")
+        self.border_title = "history"
         yield VerticalScroll(id="activity-scroll-container", classes="activity-items-list")
 
     def on_mount(self) -> None:
@@ -88,14 +88,18 @@ class ActivityListCard(Vertical):
 
     def refresh_list(self) -> None:
         """Query HistoryStore and populate chronological activity entries grouped by date."""
-        history_store = getattr(self.app, "history_store", None) or HistoryStore()
-        entries = build_timeline(history_store.get_all_blocks_sorted(ascending=True))
+        history_store = getattr(
+            self.app, "history_store", None) or HistoryStore()
+        entries = build_timeline(
+            history_store.get_all_blocks_sorted(ascending=True))
 
-        container = self.query_one("#activity-scroll-container", VerticalScroll)
+        container = self.query_one(
+            "#activity-scroll-container", VerticalScroll)
         container.remove_children()
 
         if not entries:
-            container.mount(Label("No session history recorded yet.", classes="subtext-dim"))
+            container.mount(
+                Label("No session history recorded yet.", classes="subtext-dim"))
             return
 
         # Group intervals by their start date.
