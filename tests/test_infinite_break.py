@@ -29,7 +29,7 @@ class TestInfiniteBreak(unittest.IsolatedAsyncioTestCase):
         self.temp_dir.cleanup()
 
     async def test_break_auto_transition_to_focus(self):
-        app = PomlockApp(settings=self.settings, history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
 
@@ -37,7 +37,9 @@ class TestInfiniteBreak(unittest.IsolatedAsyncioTestCase):
             await pilot.press("s")
             await pilot.pause()
 
-            self.assertIn(app.engine.kind, (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK))
+            self.assertIn(
+                app.engine.kind, (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
+            )
             self.assertIsInstance(app.screen, MainScreen)
 
             # Fast-forward engine elapsed time to simulate break expiring

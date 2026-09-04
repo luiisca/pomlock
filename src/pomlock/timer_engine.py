@@ -1,7 +1,9 @@
 import json
 import subprocess
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+
+from pomlock.settings import Settings
 
 from .constants import STATE_FILE, SessionKind, TimerState
 from .history_store import HistoryStore
@@ -9,26 +11,36 @@ from .input_handler import disable_input_devices, enable_input_devices
 from .logger import logger
 
 
+def _to_bool(val: bool | str) -> bool:
+    """Coerce config-file string booleans ('true'/'false') or real bools to bool."""
+    if isinstance(val, bool):
+        return val
+    return str(val).strip().lower() in ("1", "true", "yes", "on")
+
+
 class TimerEngine:
     """Core state machine and countdown logic for pomlock."""
 
     def __init__(
         self,
-        settings: dict,
-        history_store: Optional[HistoryStore] = None,
-        on_tick: Optional[Callable[[int, float], None]] = None,
-        on_phase_change: Optional[Callable[[SessionKind, int], None]] = None,
+        history_store: HistoryStore | None = None,
+        on_tick: Callable[[int, float], None] | None = None,
+        on_phase_change: Callable[[SessionKind, int], None] | None = None,
     ):
-        self.settings = settings
+        self.settings = Settings()
         self.history = history_store or HistoryStore()
         self._on_tick = on_tick
         self._on_phase_change = on_phase_change
 
-        self.pomo_m = float(settings.get("pomodoro", 25))
-        self.s_break_m = float(settings.get("short_break", 5))
-        self.l_break_m = float(settings.get("long_break", 20))
-        self.total_cycles = int(settings.get("cycles", 4))
-        self.activity = str(settings.get("activity", "other"))
+        pomodoro_settings = self.settings.get("pomodoro", {})
+        general_settings = self.settings.get("general", {})
+
+        self.pomo_m = float(pomodoro_settings.get("focus", 25))
+        self.s_break_m = float(pomodoro_settings.get("short_break", 5))
+        self.l_break_m = float(pomodoro_settings.get("long_break", 20))
+        self.total_cycles = int(pomodoro_settings.get("cycles", 4))
+        self.activity = str(self.settings.get("activity", "other"))
+        self.block_input = _to_bool(general_settings.get("block_input", True))
 
         self.state = TimerState.STOPPED
         self.kind = SessionKind.POMODORO
@@ -39,7 +51,7 @@ class TimerEngine:
         self.duration_s = int(round(self.pomo_m * 60))
         self.elapsed_s = 0.0
         self._last_tick_time = 0.0
-        self._current_block_id: Optional[str] = None
+        self._current_block_id: str | None = None
         self._is_cleaned_up = False
 
     @property
@@ -71,7 +83,9 @@ class TimerEngine:
         """Pause current countdown without writing to database."""
         if self.state == TimerState.RUNNING:
             self.state = TimerState.PAUSED
-            logger.debug(f"Paused block {self._current_block_id} at {self.elapsed_s:.1f}s")
+            logger.debug(
+                f"Paused block {self._current_block_id} at {self.elapsed_s:.1f}s"
+            )
 
     def resume(self) -> None:
         """Resume counting down."""
@@ -134,7 +148,7 @@ class TimerEngine:
         self._flush_block(completed=False)
         self._current_block_id = None
 
-        if self.settings.get("block_input"):
+        if self.block_input:
             enable_input_devices()
 
         if STATE_FILE.exists():
@@ -174,7 +188,9 @@ class TimerEngine:
             duration_s=dur_s,
             completed=completed,
         )
-        logger.debug(f"Flushed block {self._current_block_id}: {dur_s}s (completed={completed})")
+        logger.debug(
+            f"Flushed block {self._current_block_id}: {dur_s}s (completed={completed})"
+        )
 
     def _on_interval_end(self) -> None:
         """Handle phase completion."""
@@ -185,7 +201,7 @@ class TimerEngine:
     def _advance_phase(self) -> None:
         """Switch between pomodoro and breaks, managing cycles."""
         # Unblock input if we are exiting a break
-        if self.kind != SessionKind.POMODORO and self.settings.get("block_input"):
+        if self.kind != SessionKind.POMODORO and self.block_input:
             enable_input_devices()
 
         if self.kind == SessionKind.POMODORO:
@@ -197,7 +213,7 @@ class TimerEngine:
                 self.kind = SessionKind.SHORT_BREAK
                 self.duration_s = int(round(self.s_break_m * 60))
 
-            if self.settings.get("block_input"):
+            if self.block_input:
                 disable_input_devices()
         else:
             # Break completed, transition to Pomodoro
@@ -220,10 +236,17 @@ class TimerEngine:
         """Send notifications, execute callbacks, and notify UI listeners."""
         duration_m = int(self.duration_s // 60)
         is_pomo = self.kind == SessionKind.POMODORO
-        msg_key = "pomo_notify_msg" if is_pomo else (
-            "long_break_notify_msg" if self.kind == SessionKind.LONG_BREAK else "break_notify_msg"
+        msg_key = (
+            "pomo_notify_msg"
+            if is_pomo
+            else (
+                "long_break_notify_msg"
+                if self.kind == SessionKind.LONG_BREAK
+                else "break_notify_msg"
+            )
         )
-        notify_msg = self.settings.get(msg_key, "Phase started")
+        general_settings = self.settings.get("general", {})
+        notify_msg = general_settings.get(msg_key, "Phase started")
 
         self._send_notification(notify_msg, self.activity)
         self._sync_state()
@@ -236,7 +259,7 @@ class TimerEngine:
             "total-cycles": self.total_cycles,
             "crr-session": self.crr_session,
         }
-        self._exec_callback(self.settings.get("callback"), event_data)
+        self._exec_callback(general_settings.get("callback"), event_data)
 
         if self._on_phase_change:
             self._on_phase_change(self.kind, duration_m)
@@ -263,9 +286,10 @@ class TimerEngine:
         except OSError as e:
             logger.debug(f"Failed to write state file: {e}")
 
-    def _send_notification(self, msg: str, activity: Optional[str] = None) -> None:
+    def _send_notification(self, msg: str, activity: str | None = None) -> None:
         """Trigger desktop notification via notify-send."""
-        if not self.settings.get("notify", False):
+        general_settings = self.settings.get("general", {})
+        if not _to_bool(general_settings.get("notify", False)):
             return
 
         text = f"{msg} - {activity}" if activity else msg
@@ -274,7 +298,7 @@ class TimerEngine:
         except (FileNotFoundError, OSError) as e:
             logger.debug(f"Notification error: {e}")
 
-    def _exec_callback(self, callback_cmd: Optional[str], data: dict) -> None:
+    def _exec_callback(self, callback_cmd: str | None, data: dict) -> None:
         """Execute user-configured callback script."""
         if not callback_cmd:
             return

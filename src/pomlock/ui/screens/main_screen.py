@@ -28,7 +28,8 @@ class MainScreen(Screen):
                 # Left major column (Timer + Goals & Chart)
                 with Vertical(classes="main-left-column"):
                     timer_card = TimerCard(
-                        activity=self._activity, cycles_total=self._cycles)
+                        activity=self._activity, cycles_total=self._cycles
+                    )
                     yield timer_card
 
                     with Horizontal(classes="main-bottom-row"):
@@ -62,11 +63,14 @@ class MainScreen(Screen):
         except Exception:
             return None
 
-    def update_live_goals(self, active_activity: Optional[str], session_elapsed_s: float) -> None:
+    def update_live_goals(
+        self, active_activity: Optional[str], session_elapsed_s: float
+    ) -> None:
         """Forward real-time elapsed seconds to GoalsCard."""
         try:
             self.query_one(GoalsCard).update_live_progress(
-                active_activity, session_elapsed_s)
+                active_activity, session_elapsed_s
+            )
         except Exception:
             pass
 

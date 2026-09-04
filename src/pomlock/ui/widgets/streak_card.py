@@ -1,8 +1,10 @@
-from datetime import date, datetime, timedelta
-from typing import Optional, List, Tuple
+from datetime import date, timedelta
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Label
+
+from pomlock.settings import Settings
 
 from ...constants import GoalPeriod
 from ...history_store import HistoryStore
@@ -15,19 +17,17 @@ class StreakCard(Vertical):
 
     def __init__(
         self,
-        history_store: Optional[HistoryStore] = None,
-        reference_date: Optional[date] = None,
-        settings: Optional[dict] = None,
+        history_store: HistoryStore | None = None,
+        reference_date: date | None = None,
         id: str | None = "streak-card",
     ):
         super().__init__(id=id)
         self._history_store = history_store or HistoryStore()
         self._reference_date = reference_date or date.today()
-        self._settings = settings
         # We'll refresh the status every minute
         self._refresh_timer = None
 
-    def _calculate_streak_count(self, days: List[Tuple[str, str, str]]) -> int:
+    def _calculate_streak_count(self, days: list[tuple[str, str, str]]) -> int:
         """
         Calculate the streak count based on day icons, respecting gap allowance.
 
@@ -41,7 +41,9 @@ class StreakCard(Vertical):
         # We count days where goals were met OR days missed within gap allowance
         # First, skip any leading future days (pending) in the reversed list
         streak_count = 0
-        gap_remaining = self._settings.get("streak_allowed_gap", 1) if self._settings else 1
+
+        streak_settings = Settings().get("streak", {})
+        gap_remaining = int(streak_settings.get("allowed_gap", 1))
 
         # Iterate through days in reverse order (from today backwards)
         # Skip initial pending days which represent future days
@@ -76,35 +78,23 @@ class StreakCard(Vertical):
         self.refresh()
 
     def compose(self) -> ComposeResult:
-        self.border_title = "streak"
+        localization_settings = Settings().get("localization", {})
+        streak_settings = Settings().get("streak", {})
 
-        # Get the week start day from settings (default to Monday)
-        # We try to get the app settings, but if not available, we default to Monday (0)
-        week_start_day = 0  # Monday
-        try:
-            # First, try to use the provided settings
-            if self._settings is not None:
-                week_start_day_str = self._settings.get("week_start_day", "monday").lower()
-            else:
-                # Fallback to app settings if available
-                app = getattr(self, "app", None)
-                if app and hasattr(app, "settings"):
-                    week_start_day_str = app.settings.get("week_start_day", "monday").lower()
-                else:
-                    week_start_day_str = "monday"
-            # Map string to day number (Monday=0, Sunday=6)
-            day_map = {
-                "monday": 0,
-                "tuesday": 1,
-                "wednesday": 2,
-                "thursday": 3,
-                "friday": 4,
-                "saturday": 5,
-                "sunday": 6,
-            }
-            week_start_day = day_map.get(week_start_day_str, 0)
-        except Exception:
-            week_start_day = 0
+        week_start_day_str = str(
+            localization_settings.get("week_start_day", "monday")
+        ).lower()
+        # Map string to day number (Monday=0, Sunday=6)
+        day_map = {
+            "monday": 0,
+            "tuesday": 1,
+            "wednesday": 2,
+            "thursday": 3,
+            "friday": 4,
+            "saturday": 5,
+            "sunday": 6,
+        }
+        week_start_day = day_map.get(week_start_day_str, 0)
 
         # Get the reference date (today or the one passed in)
         ref_date = self._reference_date
@@ -136,8 +126,8 @@ class StreakCard(Vertical):
                             all_goals_met = False
                             break
                 logical_status = "done" if all_goals_met else "miss"
-            # Map logical_status to visual icon based on user setting
-            style = (self._settings or getattr(self.app, "settings", {})).get("streak_indicator_style", "icon")
+            # Map logical_status to visual icon based on user setting from current settings
+            style = streak_settings.get("indicator_style", "icon")
             if style == "color-box":
                 if logical_status == "done":
                     icon = "🟩"
@@ -163,18 +153,9 @@ class StreakCard(Vertical):
         # Week day check indicators
         # Calculate current streak (consecutive done days up to today, respecting gap allowance)
         streak_count = self._calculate_streak_count(days)
-        # Display a nicer streak header
-        with Horizontal(classes="streak-header"):
-            yield Label("Current Streak:", classes="streak-header-label")
-            yield Label(
-                f"{streak_count} day{'s' if streak_count != 1 else ''}",
-                classes="streak-count",
-            )
-        # Day name labels row (Mon, Tue, ...)
-        with Horizontal(classes="streak-day-labels"):
-            for day_name, _, _ in days:
-                yield Label(day_name, classes="streak-day-label")
-        # Day status row (icons)
+        self.border_title = (
+            f"Current Streak: {streak_count} day{'s' if streak_count != 1 else ''}"
+        )
         with Horizontal(classes="streak-days-row"):
             for day_name, icon, status_class in days:
                 with Vertical(classes="streak-col"):

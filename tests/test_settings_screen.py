@@ -6,7 +6,11 @@ from textual.widgets import Button, Input, Select
 
 from pomlock.history_store import HistoryStore
 from pomlock.ui.app import PomlockApp
-from pomlock.ui.screens.settings_screen import SettingsScreen
+from pomlock.ui.screens.settings_screen import (
+    SettingsScreen,
+    ActivityAdded,
+    PresetAdded,
+)
 import configparser
 
 
@@ -30,7 +34,7 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
         self.temp_dir.cleanup()
 
     async def test_settings_screen_navigation_and_manual_goals(self):
-        app = PomlockApp(settings=self.settings, history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
 
@@ -84,7 +88,7 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(all_act["yearly_goal"], 124800)
 
     async def test_settings_add_new_activity(self):
-        app = PomlockApp(settings=self.settings, history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
 
@@ -131,7 +135,7 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             "overlay_opacity": 0.5,
             "config_file": str(Path(self.temp_dir.name) / "test.conf"),
         }
-        app = PomlockApp(settings=custom_settings, history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
 
@@ -142,18 +146,39 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             screen = app.screen
 
             # Check that the input fields are populated with the custom settings
-            self.assertEqual(screen.query_one("#input-break-notify-msg", Input).value, "Custom break message")
-            self.assertEqual(screen.query_one("#input-long-break-notify-msg", Input).value, "Custom long break message")
-            self.assertEqual(screen.query_one("#input-pomo-notify-msg", Input).value, "Custom pomodoro message")
-            self.assertEqual(screen.query_one("#input-callback", Input).value, "/path/to/script.sh")
-            self.assertEqual(screen.query_one("#input-overlay-font-size", Input).value, "60")
-            self.assertEqual(screen.query_one("#input-overlay-color", Input).value, "#FF0000")
-            self.assertEqual(screen.query_one("#input-overlay-bg-color", Input).value, "#0000FF")
-            self.assertEqual(screen.query_one("#input-overlay-opacity", Input).value, "0.5")
+            self.assertEqual(
+                screen.query_one("#input-break-notify-msg", Input).value,
+                "Custom break message",
+            )
+            self.assertEqual(
+                screen.query_one("#input-long-break-notify-msg", Input).value,
+                "Custom long break message",
+            )
+            self.assertEqual(
+                screen.query_one("#input-pomo-notify-msg", Input).value,
+                "Custom pomodoro message",
+            )
+            self.assertEqual(
+                screen.query_one("#input-callback", Input).value, "/path/to/script.sh"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-font-size", Input).value, "60"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-color", Input).value, "#FF0000"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-bg-color", Input).value, "#0000FF"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-opacity", Input).value, "0.5"
+            )
 
             # Check that the selects are set correctly
             self.assertEqual(screen.query_one("#select-overlay", Select).value, "true")
-            self.assertEqual(screen.query_one("#select-block-input", Select).value, "true")
+            self.assertEqual(
+                screen.query_one("#select-block-input", Select).value, "true"
+            )
             self.assertEqual(screen.query_one("#select-notify", Select).value, "true")
 
             # Modify some values
@@ -161,7 +186,9 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             break_notify_input.value = "New break message"
             await pilot.pause()
 
-            overlay_font_size_input = screen.query_one("#input-overlay-font-size", Input)
+            overlay_font_size_input = screen.query_one(
+                "#input-overlay-font-size", Input
+            )
             overlay_font_size_input.value = "72"
             await pilot.pause()
 
@@ -180,7 +207,9 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             conf = configparser.ConfigParser()
             conf.read(config_path)
             self.assertTrue(conf.has_section("general"))
-            self.assertEqual(conf.get("general", "break_notify_msg"), "New break message")
+            self.assertEqual(
+                conf.get("general", "break_notify_msg"), "New break message"
+            )
             self.assertEqual(conf.get("general", "overlay_font_size"), "72")
             self.assertEqual(conf.get("general", "overlay_color"), "#FF0000")
             self.assertEqual(conf.get("general", "overlay_bg_color"), "#0000FF")
@@ -203,7 +232,7 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             # However, we are not setting them in minimal_settings, so they will come from the Settings class defaults.
             # We'll rely on the Settings class to provide defaults.
         }
-        app = PomlockApp(settings=minimal_settings, history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
 
@@ -213,17 +242,144 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             screen = app.screen
 
             # Check that the input fields have the default values
-            self.assertEqual(screen.query_one("#input-break-notify-msg", Input).value, "Time for a break!")
-            self.assertEqual(screen.query_one("#input-long-break-notify-msg", Input).value, "Time for a long break!")
-            self.assertEqual(screen.query_one("#input-pomo-notify-msg", Input).value, "Time for a pomodoro!")
+            self.assertEqual(
+                screen.query_one("#input-break-notify-msg", Input).value,
+                "Time for a break!",
+            )
+            self.assertEqual(
+                screen.query_one("#input-long-break-notify-msg", Input).value,
+                "Time for a long break!",
+            )
+            self.assertEqual(
+                screen.query_one("#input-pomo-notify-msg", Input).value,
+                "Time for a pomodoro!",
+            )
             self.assertEqual(screen.query_one("#input-callback", Input).value, "")
-            self.assertEqual(screen.query_one("#input-overlay-font-size", Input).value, "48")
-            self.assertEqual(screen.query_one("#input-overlay-color", Input).value, "white")
-            self.assertEqual(screen.query_one("#input-overlay-bg-color", Input).value, "black")
-            self.assertEqual(screen.query_one("#input-overlay-opacity", Input).value, "0.8")
+            self.assertEqual(
+                screen.query_one("#input-overlay-font-size", Input).value, "48"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-color", Input).value, "white"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-bg-color", Input).value, "black"
+            )
+            self.assertEqual(
+                screen.query_one("#input-overlay-opacity", Input).value, "0.8"
+            )
 
             # Check that the selects are set to the default values (from minimal_settings, they are not set, so they come from Settings class defaults)
             # The Settings class defaults for block_input, overlay, notify are True, True, True.
             self.assertEqual(screen.query_one("#select-overlay", Select).value, "true")
-            self.assertEqual(screen.query_one("#select-block-input", Select).value, "true")
+            self.assertEqual(
+                screen.query_one("#select-block-input", Select).value, "true"
+            )
             self.assertEqual(screen.query_one("#select-notify", Select).value, "true")
+
+    async def test_activity_added_message_handling(self):
+        """Test that the SettingsScreen correctly handles the ActivityAdded message."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")  # Switch to settings screen
+            await pilot.pause()
+
+            screen = app.screen
+            # Post an ActivityAdded message directly
+            activity_name = "running"
+            message = ActivityAdded(activity_name)
+            screen.post_message(message)
+            await pilot.pause()
+
+            # Check that the screen's _selected_activity is updated
+            self.assertEqual(screen._selected_activity, activity_name)
+            # Check that the activity select is updated
+            select = screen.query_one("#activity-select", Select)
+            self.assertEqual(select.value, activity_name)
+            # Check that the activity goals inputs are cleared (since no goals set for new activity)
+            daily_inp = screen.query_one("#input-daily-goal", Input)
+            weekly_inp = screen.query_one("#input-weekly-goal", Input)
+            monthly_inp = screen.query_one("#input-monthly-goal", Input)
+            yearly_inp = screen.query_one("#input-yearly-goal", Input)
+            self.assertEqual(daily_inp.value, "")
+            self.assertEqual(weekly_inp.value, "")
+            self.assertEqual(monthly_inp.value, "")
+            self.assertEqual(yearly_inp.value, "")
+
+    async def test_preset_added_message_handling(self):
+        """Test that the SettingsScreen correctly handles the PresetAdded message."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")  # Switch to settings screen
+            await pilot.pause()
+
+            screen = app.screen
+            # Post a PresetAdded message directly
+            preset_name = "custom"
+            # 30min work, 10min short break, 30min long break, 5 cycles
+            preset_value = "30 10 30 5"
+            message = PresetAdded(preset_name, preset_value)
+            screen.post_message(message)
+            await pilot.pause()
+
+            # Check that the screen's _selected_preset is updated
+            self.assertEqual(screen._selected_preset, preset_name)
+            # Check that the preset select is updated
+            select = screen.query_one("#preset-select", Select)
+            self.assertEqual(select.value, preset_name)
+            # Check that the preset inputs are updated with the values
+            pomodoro_inp = screen.query_one("#input-preset-pomodoro", Input)
+            short_inp = screen.query_one("#input-preset-short", Input)
+            long_inp = screen.query_one("#input-preset-long", Input)
+            cycles_inp = screen.query_one("#input-preset-cycles", Input)
+            self.assertEqual(pomodoro_inp.value, "30m")
+            self.assertEqual(short_inp.value, "10m")
+            self.assertEqual(long_inp.value, "30m")
+            self.assertEqual(cycles_inp.value, "5")
+
+    async def test_preset_persistence_to_config_file(self):
+        """Test that presets are saved to the [presets] section of the config file."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")  # Switch to settings screen
+            await pilot.pause()
+
+            screen = app.screen
+
+            # Set up inputs for a new preset
+            pomodoro_inp = screen.query_one("#input-preset-pomodoro", Input)
+            short_inp = screen.query_one("#input-preset-short", Input)
+            long_inp = screen.query_one("#input-preset-long", Input)
+            cycles_inp = screen.query_one("#input-preset-cycles", Input)
+            name_inp = screen.query_one("#input-preset-name", Input)
+
+            pomodoro_inp.value = "20m"
+            short_inp.value = "5m"
+            long_inp.value = "15m"
+            cycles_inp.value = "3"
+            name_inp.value = "my_preset"
+            await pilot.pause()
+
+            # Press the Add Preset button
+            add_btn = screen.query_one("#btn-add-preset", Button)
+            add_btn.press()
+            await pilot.pause()
+
+            # Check that the preset was added to the app settings
+            self.assertIn("my_preset", app.settings.get("presets", {}))
+            self.assertEqual(app.settings["presets"]["my_preset"], "20 5 15 3")
+
+            # Check that the config file has been updated with the [presets] section
+            config_path = Path(app.settings.get("config_file"))
+            self.assertTrue(config_path.exists())
+            conf = configparser.ConfigParser()
+            conf.read(config_path)
+            self.assertTrue(conf.has_section("presets"))
+            self.assertTrue(conf.has_option("presets", "my_preset"))
+            self.assertEqual(conf.get("presets", "my_preset"), "20 5 15 3")
+
+            # Also check that the preset is now in the select dropdown
+            select = screen.query_one("#preset-select", Select)
+            self.assertIn(("My Preset", "my_preset"), select.options)

@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Optional
 
 from textual import on
 from textual.app import App
 from textual.binding import Binding
+
+from pomlock.settings import Settings
 
 from ..constants import DEFAULT_OVERLAY_ACCENT, SessionKind, StatsView, TimerState
 from ..history_store import HistoryStore
@@ -43,20 +44,17 @@ class PomlockApp(App):
 
     def __init__(
         self,
-        settings: dict,
-        history_store: Optional[HistoryStore] = None,
+        history_store: HistoryStore | None = None,
     ):
         super().__init__()
-        self.settings = settings
         self.history_store = history_store or HistoryStore()
 
         self.engine = TimerEngine(
-            settings=self.settings,
             history_store=self.history_store,
             on_tick=self._handle_engine_tick,
             on_phase_change=self._handle_phase_change,
         )
-        self._break_modal: Optional[BreakScreen] = None
+        self._break_modal: BreakScreen | None = None
         self._break_overlay = BreakOverlayManager()
 
         self.add_mode(
@@ -82,19 +80,24 @@ class PomlockApp(App):
     def _handle_engine_tick(self, remaining_s: int, progress_pct: float) -> None:
         """Update active screens with current countdown values."""
         is_running = self.engine.state == TimerState.RUNNING
-        is_break = self.engine.kind in (
-            SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
+        is_break = self.engine.kind in (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
         kind_label = self.engine.kind.value.replace("_", " ").title()
 
-        break_duration_m = self.engine.l_break_m if self.engine.kind == SessionKind.LONG_BREAK else self.engine.s_break_m
+        break_duration_m = (
+            self.engine.l_break_m
+            if self.engine.kind == SessionKind.LONG_BREAK
+            else self.engine.s_break_m
+        )
         if not is_break:
             break_duration_m = self.engine.next_break_m
 
         # Only accumulate live elapsed seconds during a running pomodoro (not during breaks)
-        session_elapsed_s = self.engine.elapsed_s if (
-            is_running and not is_break) else 0.0
-        active_activity = self.engine.activity if (
-            is_running and not is_break) else None
+        session_elapsed_s = (
+            self.engine.elapsed_s if (is_running and not is_break) else 0.0
+        )
+        active_activity = (
+            self.engine.activity if (is_running and not is_break) else None
+        )
 
         try:
             if isinstance(self.screen, MainScreen):
@@ -111,8 +114,7 @@ class PomlockApp(App):
                     session_elapsed_s=session_elapsed_s,
                 )
             elif isinstance(self.screen, StatsScreen):
-                self.screen.update_live_goals(
-                    active_activity, session_elapsed_s)
+                self.screen.update_live_goals(active_activity, session_elapsed_s)
 
             if is_break:
                 self._break_overlay.update_timer(remaining_s)
@@ -122,7 +124,7 @@ class PomlockApp(App):
     def _handle_phase_change(self, kind: SessionKind, duration_m: int) -> None:
         """Respond to phase changes (pomodoro vs break)."""
         is_break = kind in (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
-        overlay_enabled = self.settings.get("overlay", True)
+        overlay_enabled = Settings().get("overlay", True)
 
         if is_break and overlay_enabled:
             # Launch multi-monitor Tkinter break overlay
@@ -180,8 +182,7 @@ class PomlockApp(App):
         if isinstance(self.screen, MainScreen):
             new_period = self.screen.cycle_goals_period()
             if new_period and hasattr(self, "notify"):
-                self.notify(f"Goals timeframe: {
-                            new_period.value}", title="Goals View")
+                self.notify(f"Goals timeframe: {new_period.value}", title="Goals View")
 
     def action_show_main(self) -> None:
         try:

@@ -6,17 +6,18 @@ from textual.containers import VerticalScroll
 
 from pomlock.constants import GoalPeriod
 from pomlock.history_store import HistoryStore
+from pomlock.settings import Settings
 from pomlock.ui.widgets.goals_card import GoalsCard
 from pomlock.ui.widgets.timer_card import ThickProgressBar
-from pomlock.utils import parse_duration_string
+from pomlock.utils import parse_duration_m
 
 
 class GoalsTestApp(App):
     """Test harness app containing GoalsCard."""
 
-    def __init__(self, settings: dict, history_store: HistoryStore):
+    def __init__(self, history_store: HistoryStore):
         super().__init__()
-        self.settings = settings
+        self.settings = Settings()
         self.history_store = history_store
 
     def compose(self) -> ComposeResult:
@@ -28,23 +29,29 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
 
     def test_parse_duration_string(self):
         """Test parsing various string formats into minutes."""
-        self.assertEqual(parse_duration_string("3h20m"), 200)
-        self.assertEqual(parse_duration_string("3h 20m"), 200)
-        self.assertEqual(parse_duration_string("4h"), 240)
-        self.assertEqual(parse_duration_string("40m"), 40)
-        self.assertEqual(parse_duration_string("90"), 90)
-        self.assertEqual(parse_duration_string(120), 120)
-        self.assertEqual(parse_duration_string("1.5h"), 90)
-        self.assertEqual(parse_duration_string("0h 40m"), 40)
-        self.assertEqual(parse_duration_string(""), 0)
-        self.assertEqual(parse_duration_string("invalid"), 0)
+        self.assertEqual(parse_duration_m("3h20m"), 200)
+        self.assertEqual(parse_duration_m("3h 20m"), 200)
+        self.assertEqual(parse_duration_m("4h"), 240)
+        self.assertEqual(parse_duration_m("40m"), 40)
+        self.assertEqual(parse_duration_m("90"), 90)
+        self.assertEqual(parse_duration_m(120), 120)
+        self.assertEqual(parse_duration_m("1.5h"), 90)
+        self.assertEqual(parse_duration_m("0h 40m"), 40)
+        self.assertEqual(parse_duration_m(""), 0)
+        self.assertEqual(parse_duration_m("invalid"), 0)
 
     async def test_goal_component_four_elements_rendered(self):
         """Verify each goal component contains all 4 required visual elements."""
         mock_history = MagicMock(spec=HistoryStore)
         mock_history.get_period_focus_by_activity.return_value = {"coding": 60}
         mock_history.get_activities.return_value = [
-            {"name": "coding", "daily_goal": 240, "weekly_goal": 1200, "monthly_goal": 5280, "yearly_goal": 62400}
+            {
+                "name": "coding",
+                "daily_goal": 240,
+                "weekly_goal": 1200,
+                "monthly_goal": 5280,
+                "yearly_goal": 62400,
+            }
         ]
 
         settings = {
@@ -53,7 +60,7 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        app = GoalsTestApp(settings=settings, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -84,14 +91,44 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             "gaming": 10,
         }
         mock_history.get_activities.return_value = [
-            {"name": "all", "daily_goal": 480, "weekly_goal": 2400, "monthly_goal": 10560, "yearly_goal": 124800},
-            {"name": "coding", "daily_goal": 240, "weekly_goal": 1200, "monthly_goal": 5280, "yearly_goal": 62400},
-            {"name": "reading", "daily_goal": 40, "weekly_goal": 200, "monthly_goal": 880, "yearly_goal": 10400},
-            {"name": "studying", "daily_goal": 60, "weekly_goal": 300, "monthly_goal": 1320, "yearly_goal": 15600},
-            {"name": "gaming", "daily_goal": 0, "weekly_goal": 0, "monthly_goal": 0, "yearly_goal": 0},
+            {
+                "name": "all",
+                "daily_goal": 480,
+                "weekly_goal": 2400,
+                "monthly_goal": 10560,
+                "yearly_goal": 124800,
+            },
+            {
+                "name": "coding",
+                "daily_goal": 240,
+                "weekly_goal": 1200,
+                "monthly_goal": 5280,
+                "yearly_goal": 62400,
+            },
+            {
+                "name": "reading",
+                "daily_goal": 40,
+                "weekly_goal": 200,
+                "monthly_goal": 880,
+                "yearly_goal": 10400,
+            },
+            {
+                "name": "studying",
+                "daily_goal": 60,
+                "weekly_goal": 300,
+                "monthly_goal": 1320,
+                "yearly_goal": 15600,
+            },
+            {
+                "name": "gaming",
+                "daily_goal": 0,
+                "weekly_goal": 0,
+                "monthly_goal": 0,
+                "yearly_goal": 0,
+            },
         ]
 
-        app = GoalsTestApp(settings={}, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -123,11 +160,23 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             "coding": 60,
         }
         mock_history.get_activities.return_value = [
-            {"name": "all", "daily_goal": 240, "weekly_goal": 1200, "monthly_goal": 5280, "yearly_goal": 62400},
-            {"name": "coding", "daily_goal": 120, "weekly_goal": 600, "monthly_goal": 2640, "yearly_goal": 31200},
+            {
+                "name": "all",
+                "daily_goal": 240,
+                "weekly_goal": 1200,
+                "monthly_goal": 5280,
+                "yearly_goal": 62400,
+            },
+            {
+                "name": "coding",
+                "daily_goal": 120,
+                "weekly_goal": 600,
+                "monthly_goal": 2640,
+                "yearly_goal": 31200,
+            },
         ]
 
-        app = GoalsTestApp(settings={}, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -137,7 +186,9 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             self.assertAlmostEqual(coding_pb.progress, 0.5)
 
             # Live tick: 1800s (30m) elapsed in current running session for "coding"
-            card.update_live_progress(active_activity="coding", session_elapsed_s=1800.0)
+            card.update_live_progress(
+                active_activity="coding", session_elapsed_s=1800.0
+            )
             await pilot.pause()
 
             # Now: 60m base + 30m live = 90m / 120m = 0.75
@@ -156,10 +207,16 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
         mock_history = MagicMock(spec=HistoryStore)
         mock_history.get_period_focus_by_activity.return_value = {"coding": 600}
         mock_history.get_activities.return_value = [
-            {"name": "coding", "daily_goal": 240, "weekly_goal": 1200, "monthly_goal": 5280, "yearly_goal": 62400}
+            {
+                "name": "coding",
+                "daily_goal": 240,
+                "weekly_goal": 1200,
+                "monthly_goal": 5280,
+                "yearly_goal": 62400,
+            }
         ]
 
-        app = GoalsTestApp(settings={}, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -189,12 +246,17 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
         mock_history = MagicMock(spec=HistoryStore)
         mock_history.get_period_focus_by_activity.return_value = {}
         mock_history.get_activities.return_value = [
-            {"name": f"activity-{index}", "daily_goal": 60, "weekly_goal": 300,
-             "monthly_goal": 1320, "yearly_goal": 15600}
+            {
+                "name": f"activity-{index}",
+                "daily_goal": 60,
+                "weekly_goal": 300,
+                "monthly_goal": 1320,
+                "yearly_goal": 15600,
+            }
             for index in range(12)
         ]
 
-        app = GoalsTestApp(settings={}, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -212,13 +274,31 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             "studying": 30,
         }
         mock_history.get_activities.return_value = [
-            {"name": "coding", "daily_goal": 240, "weekly_goal": 1200, "monthly_goal": 5280, "yearly_goal": 62400},
-            {"name": "reading", "daily_goal": 40, "weekly_goal": 200, "monthly_goal": 880, "yearly_goal": 10400},
-            {"name": "studying", "daily_goal": 60, "weekly_goal": 300, "monthly_goal": 1320, "yearly_goal": 15600},
+            {
+                "name": "coding",
+                "daily_goal": 240,
+                "weekly_goal": 1200,
+                "monthly_goal": 5280,
+                "yearly_goal": 62400,
+            },
+            {
+                "name": "reading",
+                "daily_goal": 40,
+                "weekly_goal": 200,
+                "monthly_goal": 880,
+                "yearly_goal": 10400,
+            },
+            {
+                "name": "studying",
+                "daily_goal": 60,
+                "weekly_goal": 300,
+                "monthly_goal": 1320,
+                "yearly_goal": 15600,
+            },
         ]
 
         settings = {}
-        app = GoalsTestApp(settings=settings, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -275,10 +355,16 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             "reading": 39,
         }
         mock_history.get_activities.return_value = [
-            {"name": "reading", "daily_goal": 40, "weekly_goal": 200, "monthly_goal": 880, "yearly_goal": 10400}
+            {
+                "name": "reading",
+                "daily_goal": 40,
+                "weekly_goal": 200,
+                "monthly_goal": 880,
+                "yearly_goal": 10400,
+            }
         ]
 
-        app = GoalsTestApp(settings={}, history_store=mock_history)
+        app = GoalsTestApp( history_store=mock_history)
         app.notify = MagicMock()
 
         async with app.run_test() as pilot:

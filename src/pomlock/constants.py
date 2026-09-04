@@ -10,7 +10,7 @@ DEFAULT_LOG_FILE = DEFAULT_DATA_DIR / f"{APP_NAME}.log"
 DEFAULT_CSV_FILE = DEFAULT_DATA_DIR / "history.csv"
 DEFAULT_DB_FILE = DEFAULT_DATA_DIR / "pomlock.db"
 STATE_FILE = Path(f"/tmp/{APP_NAME}.json")
-SESSION_TYPE = os.environ.get('XDG_SESSION_TYPE', 'x11')
+SESSION_TYPE = os.environ.get("XDG_SESSION_TYPE", "x11")
 
 
 class GoalPeriod(str, Enum):
@@ -23,7 +23,6 @@ class GoalPeriod(str, Enum):
 WORK_DAYS_PER_WEEK = 5
 WORK_DAYS_PER_MONTH = 22
 WORK_DAYS_PER_YEAR = 260
-
 
 
 class SessionKind(str, Enum):
@@ -51,10 +50,26 @@ PROC_BUS_INPUT_DEVICES = Path("/proc/bus/input/devices")
 
 # Device filter keywords
 IGNORE_DEVICE_KEYWORDS = (
-    "power", "sleep", "lid", "video", "webcam",
-    "headset", "headphone", "speaker", "audio", "mic", "sound",
-    "hda", "hdmi", "displayport", "jack", "rfkill",
-    "consumer control", "system control", "extra buttons", "avrcp",
+    "power",
+    "sleep",
+    "lid",
+    "video",
+    "webcam",
+    "headset",
+    "headphone",
+    "speaker",
+    "audio",
+    "mic",
+    "sound",
+    "hda",
+    "hdmi",
+    "displayport",
+    "jack",
+    "rfkill",
+    "consumer control",
+    "system control",
+    "extra buttons",
+    "avrcp",
 )
 
 # Color mapping for activities in list & charts
@@ -71,9 +86,9 @@ ACTIVITY_COLORS = {
 
 # Default daily goals in minutes
 DEFAULT_GOALS = {
-    "total": 420,    # 7h
-    "coding": 240,   # 4h
-    "reading": 40,   # 40m
+    "total": 420,  # 7h
+    "coding": 240,  # 4h
+    "reading": 40,  # 40m
 }
 
 # Goal widget UI indicators
@@ -84,5 +99,3 @@ GOAL_COMPLETED_TEXT = "🎉 Goal Completed!"
 DEFAULT_OVERLAY_ACCENT = "#b48ead"
 DEFAULT_FONTS_DIR = Path(__file__).parent / "ui" / "fonts"
 DSEG7_FONT_FILE = DEFAULT_FONTS_DIR / "DSEG7Classic-Bold.ttf"
-
-

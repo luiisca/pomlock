@@ -40,8 +40,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
         self.temp_dir.cleanup()
 
     async def test_screens_and_navigation(self):
-        app = PomlockApp(settings=self.settings,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
             # Verify home screen mounted
@@ -93,8 +92,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(app.screen, MainScreen)
 
     async def test_stats_chart_navigation(self):
-        app = PomlockApp(settings=self.settings,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
             chart_card = app.query_one(StatsChartCard)
@@ -118,8 +116,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(chart_label)
 
     async def test_goals_and_activity_list_rendering(self):
-        app = PomlockApp(settings=self.settings,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
             goals_card = app.query_one(GoalsCard)
@@ -131,8 +128,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
     async def test_break_overlay_and_skip(self):
         settings_with_overlay = dict(self.settings)
         settings_with_overlay["overlay"] = True
-        app = PomlockApp(settings=settings_with_overlay,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
 
@@ -142,8 +138,9 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
 
             # Main screen remains active, displaying the break timer
             self.assertIsInstance(app.screen, MainScreen)
-            self.assertIn(app.engine.kind,
-                          (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK))
+            self.assertIn(
+                app.engine.kind, (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
+            )
 
             # Press s to skip back to Pomodoro
             await pilot.press("s")
@@ -152,8 +149,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(app.screen, MainScreen)
 
     async def test_zen_mode_toggle(self):
-        app = PomlockApp(settings=self.settings,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
             self.assertIsInstance(app.screen, MainScreen)
@@ -175,8 +171,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(app.screen.has_class("zen-active"))
 
     async def test_ctrl_q_finalizes_active_block(self):
-        app = PomlockApp(settings=self.settings,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
             app.engine.pause()
@@ -191,8 +186,7 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
     async def test_custom_activity_flag(self):
         custom_settings = dict(self.settings)
         custom_settings["activity"] = "reading"
-        app = PomlockApp(settings=custom_settings,
-                         history_store=self.history_store)
+        app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
             self.assertIsInstance(app.screen, MainScreen)

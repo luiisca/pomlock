@@ -342,7 +342,7 @@ StreakCard.streak-box {
 .streak-col {
     width: 4;
     align: center middle;
-    margin: 0 1;
+    margin: 0 2;
 }
 
 .streak-icon-box {

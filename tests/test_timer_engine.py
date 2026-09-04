@@ -24,7 +24,6 @@ class TestTimerEngine(unittest.TestCase):
             "callback": "",
         }
         self.engine = TimerEngine(
-            settings=self.settings,
             history_store=self.history_store,
         )
 

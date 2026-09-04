@@ -151,6 +151,7 @@ Here is an example configuration showing all available options:
 ```ini
 # ~/.config/pomlock/pomlock.conf
 
+TODO: update sample conf 
 [pomodoro]
 # These values define the timer components when not using a preset.
 # timer = 30 5 15 4

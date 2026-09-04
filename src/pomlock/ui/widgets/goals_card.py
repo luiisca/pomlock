@@ -1,5 +1,5 @@
 import re
-from typing import Optional
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label
@@ -8,40 +8,25 @@ from ...constants import (
     ACTIVE_GOAL_INDICATOR,
     DEFAULT_GOALS,
     GOAL_COMPLETED_TEXT,
-    GoalPeriod,
     WORK_DAYS_PER_MONTH,
     WORK_DAYS_PER_WEEK,
     WORK_DAYS_PER_YEAR,
+    GoalPeriod,
 )
 from ...history_store import HistoryStore
-from ...utils import parse_duration_string
+from ...utils import format_hm, parse_duration_m
 from .timer_card import ThickProgressBar
 
 DEFAULT_TOTAL_GOAL_MINUTES = 420
 DEFAULT_ACTIVITY_GOAL_MINUTES = 60
 
 
-def _format_hm(minutes: int, pad_zero_hour: bool = False) -> str:
-    """Format minutes to 'Xh Ym' or 'Xh' representation."""
-    h, m = divmod(max(0, minutes), 60)
-
-    if pad_zero_hour:
-        return f"{h}h {m:02d}m"
-
-    if h > 0 and m > 0:
-        return f"{h}h {m:02d}m"
-    elif h > 0:
-        return f"{h}h"
-
-    return f"{m}m"
-
-
 def _format_diff(tracked_m: int, target_m: int) -> str:
     """Format difference between tracked and target minutes."""
     diff = tracked_m - target_m
     if diff >= 0:
-        return f"+{_format_hm(diff)}"
-    return f"-{_format_hm(abs(diff))}"
+        return f"+{format_hm(diff)}"
+    return f"-{format_hm(abs(diff))}"
 
 
 def _sanitize_id(name: str) -> str:
@@ -56,9 +41,9 @@ class GoalsCard(Vertical):
 
     def __init__(
         self,
-        active_activity: Optional[str] = None,
+        active_activity: str | None = None,
         period: GoalPeriod = GoalPeriod.DAILY,
-        id: Optional[str] = "goals-card",
+        id: str | None = "goals-card",
     ):
         super().__init__(id=id)
         self._active_activity = active_activity
@@ -100,14 +85,16 @@ class GoalsCard(Vertical):
         self.refresh_goals()
         self.set_interval(60.0, self.refresh_goals)
 
-    def set_active_activity(self, activity: Optional[str]) -> None:
+    def set_active_activity(self, activity: str | None) -> None:
         """Update currently tracked activity and refresh goal indicators."""
         if self._active_activity == activity:
             return
         self._active_activity = activity
         self.refresh_goals()
 
-    def update_live_progress(self, active_activity: Optional[str], session_elapsed_s: float) -> None:
+    def update_live_progress(
+        self, active_activity: str | None, session_elapsed_s: float
+    ) -> None:
         """Update active goal progress in real-time on timer tick."""
         activity_changed = self._active_activity != active_activity
         self._active_activity = active_activity
@@ -118,8 +105,7 @@ class GoalsCard(Vertical):
             return
 
         try:
-            container = self.query_one(
-                "#goals-entries-container", VerticalScroll)
+            container = self.query_one("#goals-entries-container", VerticalScroll)
         except Exception:
             return
 
@@ -128,29 +114,28 @@ class GoalsCard(Vertical):
 
         for label, target_m in self._cached_targets:
             slug = _sanitize_id(label)
-            is_active = (
-                active_name is not None
-                and (
-                    label == active_name
-                    or (label == "total" and bool(active_name))
-                )
+            is_active = active_name is not None and (
+                label == active_name or (label == "total" and bool(active_name))
             )
 
-            base_s = total_base_s if label == "total" else self._base_tracked_s.get(
-                label, 0)
+            base_s = (
+                total_base_s if label == "total" else self._base_tracked_s.get(label, 0)
+            )
             effective_s = base_s + (session_elapsed_s if is_active else 0.0)
             tracked_m = int(effective_s // 60)
             target_s = target_m * 60
 
             progress_ratio = max(0.0, min(1.0, effective_s / max(1, target_s)))
-            countdown_text = f"{_format_hm(
-                tracked_m, pad_zero_hour=True)} / {_format_hm(target_m)}"
+            countdown_text = (
+                f"{format_hm(tracked_m, pad_zero_hour=True)} / {format_hm(target_m)}"
+            )
             diff_text = _format_diff(tracked_m, target_m)
 
             try:
                 sublabel = container.query_one(f"#goal-sublabel-{slug}", Label)
-                sublabel.update(f"{ACTIVE_GOAL_INDICATOR} {
-                                label}" if is_active else label)
+                sublabel.update(
+                    f"{ACTIVE_GOAL_INDICATOR} {label}" if is_active else label
+                )
                 if is_active:
                     sublabel.add_class("goal-sublabel-active")
                 else:
@@ -159,8 +144,7 @@ class GoalsCard(Vertical):
                 pass
 
             try:
-                countdown = container.query_one(
-                    f"#goal-countdown-{slug}", Label)
+                countdown = container.query_one(f"#goal-countdown-{slug}", Label)
                 countdown.update(countdown_text)
             except Exception:
                 pass
@@ -179,8 +163,7 @@ class GoalsCard(Vertical):
 
     def refresh_goals(self) -> None:
         """Query history store and update goal progress with prioritized sorting."""
-        history_store = getattr(
-            self.app, "history_store", None) or HistoryStore()
+        history_store = getattr(self.app, "history_store", None) or HistoryStore()
         settings = getattr(self.app, "settings", {})
 
         try:
@@ -190,7 +173,8 @@ class GoalsCard(Vertical):
 
         # Query baseline tracked focus seconds by activity for current period
         min_map = history_store.get_period_focus_by_activity(
-            period=self._current_period)
+            period=self._current_period
+        )
         self._base_tracked_s = {k: v * 60 for k, v in min_map.items()}
 
         total_base_s = sum(self._base_tracked_s.values())
@@ -225,9 +209,8 @@ class GoalsCard(Vertical):
             }
             mult = multiplier_map.get(self._current_period, 1)
 
-            total_target_val = configured_goals.get(
-                "total", DEFAULT_TOTAL_GOAL_MINUTES)
-            total_target = parse_duration_string(total_target_val) * mult
+            total_target_val = configured_goals.get("total", DEFAULT_TOTAL_GOAL_MINUTES)
+            total_target = parse_duration_m(total_target_val) * mult
             if total_target <= 0:
                 total_target = DEFAULT_TOTAL_GOAL_MINUTES * mult
             raw_targets.append(("total", total_target))
@@ -237,7 +220,7 @@ class GoalsCard(Vertical):
                     continue
 
                 act_name = key.lower()
-                target_m = parse_duration_string(target_val) * mult
+                target_m = parse_duration_m(target_val) * mult
                 if target_m <= 0:
                     target_m = DEFAULT_ACTIVITY_GOAL_MINUTES * mult
 
@@ -250,12 +233,14 @@ class GoalsCard(Vertical):
         # 1. 'total' at index 0
         # 2. Currently active activity at index 1
         # 3. Remaining in table order
-        total_entry = next(
-            (t for t in filtered_targets if t[0] == "total"), None)
+        total_entry = next((t for t in filtered_targets if t[0] == "total"), None)
         active_name = self._active_activity.lower() if self._active_activity else None
         active_entry = next(
-            (t for t in filtered_targets if active_name and t[0]
-             == active_name and t[0] != "total"),
+            (
+                t
+                for t in filtered_targets
+                if active_name and t[0] == active_name and t[0] != "total"
+            ),
             None,
         )
 
@@ -272,8 +257,7 @@ class GoalsCard(Vertical):
         self._cached_targets = ordered_targets
 
         try:
-            container = self.query_one(
-                "#goals-entries-container", VerticalScroll)
+            container = self.query_one("#goals-entries-container", VerticalScroll)
         except Exception:
             return
 
@@ -281,24 +265,22 @@ class GoalsCard(Vertical):
 
         for label, target in ordered_targets:
             slug = _sanitize_id(label)
-            is_active = (
-                self._active_activity is not None
-                and (
-                    label == self._active_activity.lower()
-                    or (label == "total" and bool(self._active_activity))
-                )
+            is_active = self._active_activity is not None and (
+                label == self._active_activity.lower()
+                or (label == "total" and bool(self._active_activity))
             )
 
-            base_s = total_base_s if label == "total" else self._base_tracked_s.get(
-                label, 0)
-            effective_s = base_s + \
-                (self._session_elapsed_s if is_active else 0.0)
+            base_s = (
+                total_base_s if label == "total" else self._base_tracked_s.get(label, 0)
+            )
+            effective_s = base_s + (self._session_elapsed_s if is_active else 0.0)
             tracked_m = int(effective_s // 60)
             target_s = target * 60
 
             progress_ratio = max(0.0, min(1.0, effective_s / max(1, target_s)))
-            countdown_text = f"{_format_hm(
-                tracked_m, pad_zero_hour=True)} / {_format_hm(target)}"
+            countdown_text = (
+                f"{format_hm(tracked_m, pad_zero_hour=True)} / {format_hm(target)}"
+            )
             diff_text = _format_diff(tracked_m, target)
 
             # Check goal achievement celebration
@@ -308,7 +290,8 @@ class GoalsCard(Vertical):
                 if hasattr(self.app, "notify"):
                     self.app.notify(
                         f"🎉 Goal reached: {label} {
-                            self._current_period.value} goal completed!",
+                            self._current_period.value
+                        } goal completed!",
                         title="Goal Achieved",
                     )
 
@@ -326,12 +309,18 @@ class GoalsCard(Vertical):
                 container.mount(entry)
 
                 header_row = Horizontal(
-                    classes="goal-header-row", id=f"goal-header-row-{slug}")
+                    classes="goal-header-row", id=f"goal-header-row-{slug}"
+                )
                 entry.mount(header_row)
 
-                sublabel_text = f"{ACTIVE_GOAL_INDICATOR} {
-                    label}" if is_active else label
-                sublabel_classes = "goal-sublabel goal-sublabel-active" if is_active else "goal-sublabel"
+                sublabel_text = (
+                    f"{ACTIVE_GOAL_INDICATOR} {label}" if is_active else label
+                )
+                sublabel_classes = (
+                    "goal-sublabel goal-sublabel-active"
+                    if is_active
+                    else "goal-sublabel"
+                )
                 header_row.mount(
                     Label(
                         sublabel_text,
@@ -376,8 +365,9 @@ class GoalsCard(Vertical):
             else:
                 try:
                     sublabel = entry.query_one(f"#goal-sublabel-{slug}", Label)
-                    sublabel.update(f"{ACTIVE_GOAL_INDICATOR} {
-                                    label}" if is_active else label)
+                    sublabel.update(
+                        f"{ACTIVE_GOAL_INDICATOR} {label}" if is_active else label
+                    )
                     if is_active:
                         sublabel.add_class("goal-sublabel-active")
                     else:
@@ -386,11 +376,9 @@ class GoalsCard(Vertical):
                     pass
 
                 try:
-                    header_row = entry.query_one(
-                        f"#goal-header-row-{slug}", Horizontal)
+                    header_row = entry.query_one(f"#goal-header-row-{slug}", Horizontal)
                     try:
-                        badge = header_row.query_one(
-                            f"#goal-badge-{slug}", Label)
+                        badge = header_row.query_one(f"#goal-badge-{slug}", Label)
                         if not is_completed:
                             badge.remove()
                     except Exception:
@@ -406,8 +394,7 @@ class GoalsCard(Vertical):
                     pass
 
                 try:
-                    countdown = entry.query_one(
-                        f"#goal-countdown-{slug}", Label)
+                    countdown = entry.query_one(f"#goal-countdown-{slug}", Label)
                     countdown.update(countdown_text)
                 except Exception:
                     pass
@@ -431,11 +418,13 @@ class GoalsCard(Vertical):
 
         # Re-sort container children to match ordered_targets
         ordered_ids = [
-            f"goal-entry-{_sanitize_id(label)}" for label, _ in ordered_targets]
+            f"goal-entry-{_sanitize_id(label)}" for label, _ in ordered_targets
+        ]
         try:
             container.sort_children(
-                key=lambda node: ordered_ids.index(
-                    node.id) if node.id in ordered_ids else 999
+                key=lambda node: (
+                    ordered_ids.index(node.id) if node.id in ordered_ids else 999
+                )
             )
         except Exception:
             pass
