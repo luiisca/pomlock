@@ -1,5 +1,33 @@
 # Changelog
 
+## [4.0.0](https://github.com/luiisca/pomlock/compare/v3.0.0...v4.0.0) (2026-09-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* complete configuration parsing rehaul
+
+### Features
+
+* add activity goals section in main page + replace history.csv with local sqlite db ([dd18a57](https://github.com/luiisca/pomlock/commit/dd18a577e796aa5f61aa74e82e857681074b3f73))
+* add current week focused time stats chart on main screen ([47fae6d](https://github.com/luiisca/pomlock/commit/47fae6d848641732598c042410dda93a92de8345))
+* add gap-aware streak counting and tests ([c9fa2f9](https://github.com/luiisca/pomlock/commit/c9fa2f921275f253bee0d805adcd5c9063122262))
+* add settings page ([9f62a74](https://github.com/luiisca/pomlock/commit/9f62a7424648c31dc0a6263794296f963d9c964f))
+* add streak indicator style setting and configurable streak UI ([4385d7f](https://github.com/luiisca/pomlock/commit/4385d7fa424bee38d0cf83b09d06ee63ba0eace0))
+* add streak widget enhancements, new tests, and changelog ([1e8f92a](https://github.com/luiisca/pomlock/commit/1e8f92a03b9ac2f77aee0ba5b7ec4903f9faeb0f))
+* implement settings page improvements including activity deletion, color customization, olive garden palette, and manual goal entry ([c702acc](https://github.com/luiisca/pomlock/commit/c702accde6089b9e9406372c6873e0ceabe6d7ba))
+
+
+### Documentation
+
+* change LICENCE ([46e05c1](https://github.com/luiisca/pomlock/commit/46e05c13e037cb496945d9dff6c2ef453e016fe9))
+* update readme ([880e9eb](https://github.com/luiisca/pomlock/commit/880e9eb7c7ea342278806052802138f2aa771237))
+
+
+### Code Refactoring
+
+* complete configuration parsing rehaul ([a070af1](https://github.com/luiisca/pomlock/commit/a070af10854bea0cde70396959f39eccd2eafdfa))
+
 ## [3.0.0](https://github.com/luiisca/pomlock/compare/v2.1.0...v3.0.0) (2026-08-29)
 
 
