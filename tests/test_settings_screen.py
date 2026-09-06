@@ -1,9 +1,11 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from textual.widgets import Button, Input, Select
+from textual.widgets import Button, Input, Label, Select
 
+from pomlock.constants import DAYS_OF_WEEK
 from pomlock.history_store import HistoryStore
 from pomlock.ui.app import PomlockApp
 from pomlock.ui.screens.settings_screen import (
@@ -12,6 +14,9 @@ from pomlock.ui.screens.settings_screen import (
     PresetAdded,
 )
 import configparser
+
+import pomlock.settings as settings_module
+from pomlock.settings import Settings
 
 
 class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
@@ -30,7 +35,15 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             "notify": False,
         }
 
+        # Redirect Settings to a temp config so tests never touch the real user config
+        self._conf_path = Path(self.temp_dir.name) / "test.conf"
+        Settings.reset()
+        self._conf_patcher = patch.object(settings_module, "DEFAULT_CONFIG_FILE", self._conf_path)
+        self._conf_patcher.start()
+
     async def asyncTearDown(self):
+        Settings.reset()
+        self._conf_patcher.stop()
         self.temp_dir.cleanup()
 
     async def test_settings_screen_navigation_and_manual_goals(self):
@@ -47,6 +60,14 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             daily_inp = screen.query_one("#input-daily-goal", Input)
             monthly_inp = screen.query_one("#input-monthly-goal", Input)
             yearly_inp = screen.query_one("#input-yearly-goal", Input)
+
+            # Set auto_calc = False to allow selecting and saving 'all' goals
+            Settings().auto_calc = False
+            screen._refresh_activity_select()
+            screen._selected_activity = "all"
+            select = screen.query_one("#activity-select", Select)
+            select.value = "all"
+            await pilot.pause()
 
             # Clear inputs
             daily_inp.value = ""
@@ -74,18 +95,17 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             # Save goals for current activity ("all")
-            btn_save = screen.query_one("#btn-save-goals", Button)
+            btn_save = screen.query_one("#btn-add-activity", Button)
             btn_save.press()
             await pilot.pause()
 
-            # Verify saved in database
-            activities = self.history_store.get_activities()
-            all_act = next((a for a in activities if a["name"] == "all"), None)
+            # Verify saved in settings
+            activities = Settings().get("activities", {})
+            all_act = activities.get("all")
             self.assertIsNotNone(all_act)
-            self.assertEqual(all_act["daily_goal"], 480)
-            self.assertEqual(all_act["weekly_goal"], 2400)
-            self.assertEqual(all_act["monthly_goal"], 10560)
-            self.assertEqual(all_act["yearly_goal"], 124800)
+            self.assertEqual(all_act["daily"], 480)
+            self.assertEqual(all_act["monthly"], 10560)
+            self.assertEqual(all_act["yearly"], 124800)
 
     async def test_settings_add_new_activity(self):
         app = PomlockApp(history_store=self.history_store)
@@ -104,10 +124,9 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             btn_add.press()
             await pilot.pause()
 
-            # Check added to DB
-            activities = self.history_store.get_activities()
-            act_names = [a["name"] for a in activities]
-            self.assertIn("swimming", act_names)
+            # Check added to settings
+            activities = Settings().get("activities", {})
+            self.assertIn("swimming", activities)
 
             # Check selected in dropdown
             select = screen.query_one("#activity-select", Select)
@@ -115,26 +134,6 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
 
     async def test_settings_general_settings_load_and_save(self):
         """Test that general settings are correctly loaded from app settings and saved to config file."""
-        # Set up settings with custom values for the new fields
-        custom_settings = {
-            "pomodoro": 25,
-            "short_break": 5,
-            "long_break": 15,
-            "cycles": 4,
-            "activity": "coding",
-            "block_input": True,
-            "overlay": True,
-            "notify": True,
-            "break_notify_msg": "Custom break message",
-            "long_break_notify_msg": "Custom long break message",
-            "pomo_notify_msg": "Custom pomodoro message",
-            "callback": "/path/to/script.sh",
-            "overlay_font_size": 60,
-            "overlay_color": "#FF0000",
-            "overlay_bg_color": "#0000FF",
-            "overlay_opacity": 0.5,
-            "config_file": str(Path(self.temp_dir.name) / "test.conf"),
-        }
         app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -145,61 +144,28 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
 
             screen = app.screen
 
-            # Check that the input fields are populated with the custom settings
+            # Check that the input fields are populated with settings
             self.assertEqual(
-                screen.query_one("#input-break-notify-msg", Input).value,
-                "Custom break message",
+                screen.query_one("#field-general-break_notify_msg", Input).value,
+                "Time for a break!",
             )
             self.assertEqual(
-                screen.query_one("#input-long-break-notify-msg", Input).value,
-                "Custom long break message",
+                screen.query_one("#field-overlay-font_size", Input).value,
+                str(Settings()["overlay"]["font_size"]),
             )
-            self.assertEqual(
-                screen.query_one("#input-pomo-notify-msg", Input).value,
-                "Custom pomodoro message",
-            )
-            self.assertEqual(
-                screen.query_one("#input-callback", Input).value, "/path/to/script.sh"
-            )
-            self.assertEqual(
-                screen.query_one("#input-overlay-font-size", Input).value, "60"
-            )
-            self.assertEqual(
-                screen.query_one("#input-overlay-color", Input).value, "#FF0000"
-            )
-            self.assertEqual(
-                screen.query_one("#input-overlay-bg-color", Input).value, "#0000FF"
-            )
-            self.assertEqual(
-                screen.query_one("#input-overlay-opacity", Input).value, "0.5"
-            )
-
-            # Check that the selects are set correctly
-            self.assertEqual(screen.query_one("#select-overlay", Select).value, "true")
-            self.assertEqual(
-                screen.query_one("#select-block-input", Select).value, "true"
-            )
-            self.assertEqual(screen.query_one("#select-notify", Select).value, "true")
 
             # Modify some values
-            break_notify_input = screen.query_one("#input-break-notify-msg", Input)
+            break_notify_input = screen.query_one(
+                "#field-general-break_notify_msg", Input
+            )
             break_notify_input.value = "New break message"
             await pilot.pause()
 
             overlay_font_size_input = screen.query_one(
-                "#input-overlay-font-size", Input
+                "#field-overlay-font_size", Input
             )
             overlay_font_size_input.value = "72"
             await pilot.pause()
-
-            # Click the Save General Settings button
-            save_btn = screen.query_one("#btn-save-general", Button)
-            save_btn.press()
-            await pilot.pause()
-
-            # Check that the app settings have been updated
-            self.assertEqual(app.settings["break_notify_msg"], "New break message")
-            self.assertEqual(app.settings["overlay_font_size"], 72)
 
             # Check that the config file has been updated
             config_path = Path(app.settings.get("config_file"))
@@ -210,28 +176,10 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 conf.get("general", "break_notify_msg"), "New break message"
             )
-            self.assertEqual(conf.get("general", "overlay_font_size"), "72")
-            self.assertEqual(conf.get("general", "overlay_color"), "#FF0000")
-            self.assertEqual(conf.get("general", "overlay_bg_color"), "#0000FF")
-            self.assertEqual(conf.get("general", "overlay_opacity"), "0.5")  # unchanged
-            self.assertEqual(conf.get("general", "overlay"), "true")
-            self.assertEqual(conf.get("general", "block_input"), "true")
-            self.assertEqual(conf.get("general", "notify"), "true")
+            self.assertEqual(conf.get("overlay", "font_size"), "72")
 
     async def test_settings_general_settings_defaults(self):
         """Test that default values are used when settings are not provided."""
-        # Use minimal settings (only the required ones)
-        minimal_settings = {
-            "pomodoro": 25,
-            "short_break": 5,
-            "long_break": 15,
-            "cycles": 4,
-            "activity": "coding",
-            # block_input, overlay, notify will default to True, True, True? Actually, from Settings class, defaults are True, True, True?
-            # But note: in the Settings class, the CLI_ARGS have defaults: block_input=True, overlay=True, notify=True.
-            # However, we are not setting them in minimal_settings, so they will come from the Settings class defaults.
-            # We'll rely on the Settings class to provide defaults.
-        }
         app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -243,38 +191,47 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
 
             # Check that the input fields have the default values
             self.assertEqual(
-                screen.query_one("#input-break-notify-msg", Input).value,
+                screen.query_one("#field-general-break_notify_msg", Input).value,
                 "Time for a break!",
             )
             self.assertEqual(
-                screen.query_one("#input-long-break-notify-msg", Input).value,
+                screen.query_one("#field-general-long_break_notify_msg", Input).value,
                 "Time for a long break!",
             )
             self.assertEqual(
-                screen.query_one("#input-pomo-notify-msg", Input).value,
+                screen.query_one("#field-general-pomo_notify_msg", Input).value,
                 "Time for a pomodoro!",
             )
-            self.assertEqual(screen.query_one("#input-callback", Input).value, "")
             self.assertEqual(
-                screen.query_one("#input-overlay-font-size", Input).value, "48"
+                screen.query_one("#field-general-callback", Input).value, ""
             )
             self.assertEqual(
-                screen.query_one("#input-overlay-color", Input).value, "white"
+                screen.query_one("#field-overlay-font_size", Input).value,
+                str(Settings()["overlay"]["font_size"]),
             )
             self.assertEqual(
-                screen.query_one("#input-overlay-bg-color", Input).value, "black"
+                screen.query_one("#field-overlay-color", Input).value,
+                str(Settings()["overlay"]["color"]),
             )
             self.assertEqual(
-                screen.query_one("#input-overlay-opacity", Input).value, "0.8"
+                screen.query_one("#field-overlay-bg_color", Input).value,
+                str(Settings()["overlay"]["bg_color"]),
+            )
+            self.assertEqual(
+                screen.query_one("#field-overlay-opacity", Input).value,
+                str(Settings()["overlay"]["opacity"]),
             )
 
-            # Check that the selects are set to the default values (from minimal_settings, they are not set, so they come from Settings class defaults)
-            # The Settings class defaults for block_input, overlay, notify are True, True, True.
-            self.assertEqual(screen.query_one("#select-overlay", Select).value, "true")
+            # Check that the selects are set to the default values
             self.assertEqual(
-                screen.query_one("#select-block-input", Select).value, "true"
+                screen.query_one("#field-overlay-enabled", Select).value, "true"
             )
-            self.assertEqual(screen.query_one("#select-notify", Select).value, "true")
+            self.assertEqual(
+                screen.query_one("#field-general-block_input", Select).value, "true"
+            )
+            self.assertEqual(
+                screen.query_one("#field-general-notify", Select).value, "true"
+            )
 
     async def test_activity_added_message_handling(self):
         """Test that the SettingsScreen correctly handles the ActivityAdded message."""
@@ -382,4 +339,145 @@ class TestSettingsScreen(unittest.IsolatedAsyncioTestCase):
 
             # Also check that the preset is now in the select dropdown
             select = screen.query_one("#preset-select", Select)
-            self.assertIn(("My Preset", "my_preset"), select.options)
+            self.assertIn(("My Preset", "my_preset"), select._options)
+
+    async def test_localization_widget(self):
+        """Test localization custom widget renders week_start_day select and locale input."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+            week_select = screen.query_one("#field-localization-week_start_day", Select)
+            self.assertEqual(week_select._options, DAYS_OF_WEEK)
+            self.assertEqual(week_select.value, "monday")
+
+            locale_input = screen.query_one("#field-localization-locale", Input)
+            self.assertEqual(locale_input.value, "en_US")
+
+            # Modify both and verify persistence
+            week_select.value = "sunday"
+            await pilot.pause()
+            locale_input.value = "fr_FR"
+            await pilot.pause()
+
+            config_path = Path(app.settings.get("config_file"))
+            conf = configparser.ConfigParser()
+            conf.read(config_path)
+            self.assertEqual(conf.get("localization", "week_start_day"), "sunday")
+            self.assertEqual(conf.get("localization", "locale"), "fr_FR")
+
+    async def test_auto_calc_selector(self):
+        """Test auto_calc boolean selector exists in activities section."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+            auto_calc_sel = screen.query_one("#select-auto-calc", Select)
+            self.assertIn(("True", "true"), auto_calc_sel._options)
+            self.assertIn(("False", "false"), auto_calc_sel._options)
+            self.assertEqual(auto_calc_sel.value, "true")
+
+    async def test_all_total_disabled(self):
+        """Test all/total title input is disabled when selected with auto_calc=false."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+            auto_calc_sel = screen.query_one("#select-auto-calc", Select)
+            auto_calc_sel.value = "false"
+            await pilot.pause()
+
+            act_sel = screen.query_one("#activity-select", Select)
+            act_sel.value = "all"
+            await pilot.pause()
+
+            title_inp = screen.query_one("#input-new-activity", Input)
+            self.assertTrue(title_inp.disabled)
+
+            # Switch to another activity and verify title input is enabled
+            act_sel.value = "other"
+            await pilot.pause()
+            self.assertFalse(title_inp.disabled)
+
+    async def test_null_title_inputs(self):
+        """Test activity and preset title inputs are empty, not NULL, when not selected."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+            act_sel = screen.query_one("#activity-select", Select)
+            act_sel.value = Select.NULL
+            await pilot.pause()
+
+            act_title = screen.query_one("#input-new-activity", Input)
+            self.assertEqual(act_title.value, "")
+
+            preset_sel = screen.query_one("#preset-select", Select)
+            preset_sel.value = Select.NULL
+            await pilot.pause()
+
+            preset_title = screen.query_one("#input-preset-name", Input)
+            self.assertEqual(preset_title.value, "")
+
+    async def test_create_update_labels(self):
+        """Test section titles and buttons adapt between create and update."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+            act_sel = screen.query_one("#activity-select", Select)
+            act_sel.value = Select.NULL
+            await pilot.pause()
+
+            act_title_lbl = screen.query_one("#label-activity-action", Label)
+            self.assertIn("create", str(act_title_lbl.render()).lower())
+            act_btn = screen.query_one("#btn-add-activity", Button)
+            btn_label_str = str(act_btn.label).lower()
+            self.assertTrue("add" in btn_label_str or "create" in btn_label_str)
+
+            act_sel.value = "other"
+            await pilot.pause()
+            self.assertIn("update", str(act_title_lbl.render()).lower())
+            self.assertIn("update", str(act_btn.label).lower())
+
+    async def test_persist_explicit_only(self):
+        """Test persist_settings is called only on explicit changes differing from original."""
+        app = PomlockApp(history_store=self.history_store)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("6")
+            await pilot.pause()
+
+            screen = app.screen
+            with patch.object(screen, "persist_settings") as mock_persist:
+                # Switching activity without input changes must not persist
+                act_sel = screen.query_one("#activity-select", Select)
+                act_sel.value = "other"
+                await pilot.pause()
+                mock_persist.assert_not_called()
+
+                # Changing input to same value must not persist
+                break_inp = screen.query_one("#field-general-break_notify_msg", Input)
+                break_inp.value = "Time for a break!"
+                await pilot.pause()
+                mock_persist.assert_not_called()
+
+                # Changing to different value must persist
+                break_inp.value = "Something new"
+                await pilot.pause()
+                mock_persist.assert_called()

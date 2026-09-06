@@ -12,13 +12,39 @@ from .constants import (
     STATE_FILE,
 )
 from .logger import logger
-from .utils import deep_merge, parse_activities_goals_m, parse_duration_m
+from .utils import deep_merge, parse_activities_goals_m
 
 
 class Settings(dict):
     """Configuration loader merging presets, config files, and CLI flags."""
 
     _instance: "Settings | None" = None
+    _listeners: list = []
+
+    @classmethod
+    def subscribe(cls, callback) -> None:
+        # Register observer callback for settings updates
+        if callback not in cls._listeners:
+            cls._listeners.append(callback)
+
+    @classmethod
+    def unsubscribe(cls, callback) -> None:
+        # Remove observer callback
+        if callback in cls._listeners:
+            cls._listeners.remove(callback)
+
+    @classmethod
+    def reset(cls) -> None:
+        # Reset singleton instance for test isolation
+        cls._instance = None
+
+    def notify(self) -> None:
+        # Notify all registered observer callbacks when settings change
+        for callback in list(self._listeners):
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Error in settings listener: {e}")
 
     DEFAULT_PRESETS = {
         "standard": "25 5 20 4",
@@ -26,51 +52,74 @@ class Settings(dict):
         "fifty_ten": "50 10 10 1",
     }
     DEFAULT_ACTIVITIES = {
-        "other": "",
+        "auto_calc": True,
+        "other": {},
     }
+
+    @property
+    def auto_calc(self) -> bool:
+        if "activities" in self and isinstance(self["activities"], dict) and "auto_calc" in self["activities"]:
+            return bool(self["activities"]["auto_calc"])
+        return bool(self.get("auto_calc", True))
+
+    @auto_calc.setter
+    def auto_calc(self, value: bool) -> None:
+        self["auto_calc"] = bool(value)
+        if "activities" in self and isinstance(self["activities"], dict):
+            self["activities"]["auto_calc"] = bool(value)
+
     CLI_ARGS = {
-        # --- [pomodoro] ---
-        "focus": {
-            "group": "pomodoro",
-            "default": "25",
-            "type": str,
-            "short": "-p",
-            "long": "--pomodoro",
-            "help": "Interval of work time in minutes (or with 's' for seconds).",
-        },
-        "short_break": {
-            "group": "pomodoro",
-            "default": "5",
-            "type": str,
-            "short": "-s",
-            "long": "--short-break",
-            "help": "Short break duration in minutes (or with 's' for seconds).",
-        },
-        "long_break": {
-            "group": "pomodoro",
-            "default": "20",
-            "type": str,
-            "short": "-l",
-            "long": "--long-break",
-            "help": "Long break duration in minutes (or with 's' for seconds).",
-        },
-        "cycles": {
-            "group": "pomodoro",
-            "default": 4,
-            "type": int,
-            "short": "-c",
-            "long": "--cycles",
-            "help": "Cycles before a long break.",
-        },
-        # --- [presets] ---
+        # --- [general] ---
         "timer": {
-            "group": None,
+            "group": "general",
             "default": "standard",
             "type": str,
             "short": "-t",
             "long": "--timer",
             "help": """Set a timer preset (available: {presets}) or custom values: 'POMODORO SHORT_BREAK LONG_BREAK CYCLES'.
                  Examples: --timer "25 5 15 4" or --timer ultradian.""",
+        },
+        "block_input": {
+            "group": "general",
+            "default": True,
+            "long": "--block-input",
+            "action": argparse.BooleanOptionalAction,
+            "help": "Enable/disable keyboard/mouse input during break.",
+        },
+        "notify": {
+            "group": "general",
+            "default": True,
+            "long": "--notify",
+            "action": argparse.BooleanOptionalAction,
+            "help": "Enable/disable desktop notificatios.",
+        },
+        "break_notify_msg": {
+            "group": "general",
+            "default": "Time for a break!",
+            "type": str,
+            "long": "--break-notify-msg",
+            "help": "Message for break notifications.",
+        },
+        "long_break_notify_msg": {
+            "group": "general",
+            "default": "Time for a long break!",
+            "type": str,
+            "long": "--long-break-notify-msg",
+            "help": "Message for long break notifications.",
+        },
+        "pomo_notify_msg": {
+            "group": "general",
+            "default": "Time for a pomodoro!",
+            "type": str,
+            "long": "--pomo-notify-msg",
+            "help": "Message for pomodoro notifications.",
+        },
+        "callback": {
+            "group": "general",
+            "default": "",
+            "type": str,
+            "long": "--callback",
+            "help": "Script to call for pomodoro and break events.",
         },
         # --- [overlay] ---
         "enabled": {
@@ -147,49 +196,6 @@ class Settings(dict):
             "long": "--locale",
             "help": "Locale for streak widget (e.g., en_US).",
         },
-        # --- [general] ---
-        "block_input": {
-            "group": "general",
-            "default": True,
-            "long": "--block-input",
-            "action": argparse.BooleanOptionalAction,
-            "help": "Enable/disable keyboard/mouse input during break.",
-        },
-        "notify": {
-            "group": "general",
-            "default": True,
-            "long": "--notify",
-            "action": argparse.BooleanOptionalAction,
-            "help": "Enable/disable desktop notificatios.",
-        },
-        "break_notify_msg": {
-            "group": "general",
-            "default": "Time for a break!",
-            "type": str,
-            "long": "--break-notify-msg",
-            "help": "Message for break notifications.",
-        },
-        "long_break_notify_msg": {
-            "group": "general",
-            "default": "Time for a long break!",
-            "type": str,
-            "long": "--long-break-notify-msg",
-            "help": "Message for long break notifications.",
-        },
-        "pomo_notify_msg": {
-            "group": "general",
-            "default": "Time for a pomodoro!",
-            "type": str,
-            "long": "--pomo-notify-msg",
-            "help": "Message for pomodoro notifications.",
-        },
-        "callback": {
-            "group": "general",
-            "default": "",
-            "type": str,
-            "long": "--callback",
-            "help": "Script to call for pomodoro and break events.",
-        },
         # --- not part of the config file (CLI-only utility flags) ---
         "show_presets": {
             "long": "--show-presets",
@@ -249,42 +255,14 @@ class Settings(dict):
 
         # parse timer and activities goals to minutes and replace correspoding
         # settings in merged_settings
+        logger.debug(f"merged settings: {self}")
         self["activities"] = parse_activities_goals_m(self)
-        if self.get("timer"):
-            # pyright: ignore[reportArgumentType]
-            self["pomodoro"] = self._parse_timer_m(self)
 
         if not (0.0 <= float(self["overlay"]["opacity"]) <= 1.0):
             logger.error("Overlay opacity must be between 0.0 and 1.0. Exiting.")
             sys.exit(1)
 
-        logger.debug(f"Effective settings: {self}")
         self._initialized = True
-
-    def _parse_timer_m(self, settings: dict[str, dict[str, str]]):
-        new_pomodoro_settings: dict[str, int | float] = {}
-        timer_val = str(settings["timer"]).lower()
-        preset_val = settings["presets"].get(
-            timer_val, timer_val if " " in timer_val else None
-        )
-
-        if preset_val:
-            logger.debug(f"Applying timer setting: '{preset_val}'")
-            try:
-                parts = preset_val.split()
-                if len(parts) == 4:
-                    keys = list(settings["pomodoro"].keys())
-                    for key, part in zip(keys[:3], parts[:3]):
-                        new_pomodoro_settings[key] = parse_duration_m(part)
-                    new_pomodoro_settings["cycles"] = int(parts[3])
-                else:
-                    logger.error(
-                        f"Invalid timer format '{preset_val}'. Expected 4 values."
-                    )
-                    sys.exit(1)
-            except ValueError:
-                logger.error(f"Invalid values in timer string '{preset_val}'.")
-        return new_pomodoro_settings
 
     def _get_default_settings(self):
         """Generates default settings dictionary."""
@@ -308,12 +286,28 @@ class Settings(dict):
                 continue
             else:
                 settings[sect_name] = dict(sect)
+        logger.debug(f"_get_conf_settings: {settings}")
         return settings
 
     def _build_parser(self) -> argparse.ArgumentParser:
         """Builds an ArgumentParser from CLI_ARGS."""
-        preset_names = ", ".join(self.conf_file_parser.options("presets"))
-        activity_names = ", ".join(self.conf_file_parser.options("activities"))
+        preset_names = (
+            ", ".join(self.conf_file_parser.options("presets"))
+            if self.conf_file_parser.has_section("presets")
+            else ""
+        )
+        act_sections = [
+            s[len("activities."):]
+            for s in self.conf_file_parser.sections()
+            if s.startswith("activities.")
+        ]
+        if not act_sections and self.conf_file_parser.has_section("activities"):
+            valid = {"auto_calc", "daily", "weekly", "monthly", "yearly"}
+            act_sections = [
+                opt for opt in self.conf_file_parser.options("activities")
+                if opt not in valid
+            ]
+        activity_names = ", ".join(act_sections or ["other"])
         parser = argparse.ArgumentParser(
             description=f"A Pomodoro timer with input locking. Config: '{
                 self.preparsed_custom_path_args['config']
@@ -345,7 +339,8 @@ class Settings(dict):
         """Parses command line flags."""
         settings: dict[str, dict[str, str]] = {}
         parser = self._build_parser()
-        parsed_args = vars(parser.parse_args())
+        parsed_known, _ = parser.parse_known_args()
+        parsed_args = vars(parsed_known)
         for dest, spec in self.CLI_ARGS.items():
             group = spec.get("group")
             value = parsed_args[dest]
@@ -355,7 +350,6 @@ class Settings(dict):
                 settings[dest] = value
             else:
                 settings.setdefault(group, {})[dest] = value
-        logger.debug(f"SETTINGS FROM CLI {settings}")
         return settings
 
     def _preparse_custom_paths_args(self):

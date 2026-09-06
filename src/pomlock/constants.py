@@ -1,3 +1,4 @@
+from calendar import MONDAY, TUESDAY
 from enum import Enum
 import os
 from pathlib import Path
@@ -31,6 +32,13 @@ class SessionKind(str, Enum):
     LONG_BREAK = "long_break"
 
 
+class Pomodoro(str, Enum):
+    FOCUS = "focus"
+    SHORT_BREAK = "short_break"
+    LONG_BREAK = "long_break"
+    CYCLES = "cycles"
+
+
 class TimerState(str, Enum):
     RUNNING = "running"
     PAUSED = "paused"
@@ -42,6 +50,17 @@ class StatsView(str, Enum):
     WEEK = "this week"
     MONTH = "this month"
     YEAR = "this year"
+
+
+DAYS_OF_WEEK = [
+    ("Monday", "monday"),
+    ("Tuesday", "tuesday"),
+    ("Wednesday", "wednesday"),
+    ("Thursday", "thursday"),
+    ("Friday", "friday"),
+    ("Saturday", "saturday"),
+    ("Sunday", "sunday"),
+]
 
 
 # Linux evdev ioctl constants

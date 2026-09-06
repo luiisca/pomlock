@@ -2,6 +2,7 @@ import sys
 
 from rich import print
 
+from pomlock.constants import DEFAULT_LOG_FILE
 from pomlock.settings import Settings
 
 from .history_store import HistoryStore
@@ -24,6 +25,7 @@ def main() -> None:
     app = None
 
     try:
+        setup_logging(DEFAULT_LOG_FILE, True)
         settings = Settings()
 
         if "--show-presets" in sys.argv:
@@ -34,17 +36,20 @@ def main() -> None:
         if "--show-activities" in sys.argv:
             activities_config = settings.get("activities", {})
             for activity, goals in activities_config.items():
-                if goals:
+                if activity in ("auto_calc", "all", "total"):
+                    continue
+                if isinstance(goals, dict) and any(k != "color" for k in goals):
                     goals_str = ", ".join(
                         f"{period}={format_hm(value)}"
                         for period, value in goals.items()
+                        if period != "color"
                     )
                     print(f"{activity} ({goals_str})")
                 else:
                     print(activity)
             return
 
-        setup_logging(settings.get("log_file"), settings.get("verbose"))
+        # setup_logging(settings.get("log_file"), settings.get("verbose"))
         logger.debug(f"Config after loading: {settings}")
 
         history_store = HistoryStore()
