@@ -12,6 +12,7 @@ dependencies = [
   "rich",
   "rich-argparse>=1.7.1",
   "textual>=8.2.8",
+  "textual-plot>=0.10.1",
 ]
 classifiers = [
   "Intended Audience :: End Users/Desktop",
@@ -32,6 +33,11 @@ pomlock = "pomlock:main"
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
 
 # [[tool.uv.index]]
 # name = "testpypi"

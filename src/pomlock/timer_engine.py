@@ -4,18 +4,12 @@ import time
 from collections.abc import Callable
 
 from pomlock.settings import Settings
+from pomlock.utils import parse_timer_m, to_bool
 
-from .constants import STATE_FILE, SessionKind, TimerState
+from .constants import STATE_FILE, Pomodoro, SessionKind, TimerState
 from .history_store import HistoryStore
 from .input_handler import disable_input_devices, enable_input_devices
 from .logger import logger
-
-
-def _to_bool(val: bool | str) -> bool:
-    """Coerce config-file string booleans ('true'/'false') or real bools to bool."""
-    if isinstance(val, bool):
-        return val
-    return str(val).strip().lower() in ("1", "true", "yes", "on")
 
 
 class TimerEngine:
@@ -32,15 +26,16 @@ class TimerEngine:
         self._on_tick = on_tick
         self._on_phase_change = on_phase_change
 
-        pomodoro_settings = self.settings.get("pomodoro", {})
+        pomodoro_settings = parse_timer_m(self.settings)
         general_settings = self.settings.get("general", {})
+        logger.debug(f"pomodoro_settings in TimerEngine: {self.settings}")
 
-        self.pomo_m = float(pomodoro_settings.get("focus", 25))
-        self.s_break_m = float(pomodoro_settings.get("short_break", 5))
-        self.l_break_m = float(pomodoro_settings.get("long_break", 20))
-        self.total_cycles = int(pomodoro_settings.get("cycles", 4))
+        self.pomo_m = float(pomodoro_settings.get(Pomodoro.FOCUS, 25))
+        self.s_break_m = float(pomodoro_settings.get(Pomodoro.SHORT_BREAK, 5))
+        self.l_break_m = float(pomodoro_settings.get(Pomodoro.LONG_BREAK, 20))
+        self.total_cycles = int(pomodoro_settings.get(Pomodoro.CYCLES, 4))
         self.activity = str(self.settings.get("activity", "other"))
-        self.block_input = _to_bool(general_settings.get("block_input", True))
+        self.block_input = to_bool(general_settings.get("block_input", True))
 
         self.state = TimerState.STOPPED
         self.kind = SessionKind.POMODORO
@@ -289,7 +284,7 @@ class TimerEngine:
     def _send_notification(self, msg: str, activity: str | None = None) -> None:
         """Trigger desktop notification via notify-send."""
         general_settings = self.settings.get("general", {})
-        if not _to_bool(general_settings.get("notify", False)):
+        if not to_bool(general_settings.get("notify", False)):
             return
 
         text = f"{msg} - {activity}" if activity else msg

@@ -45,8 +45,8 @@ def test_streak_count_respects_gap():
         # Settings allow one missed day gap
         settings = {"streak_allowed_gap": 1}
         card = StreakCard(
-            history_store=history_store,
             reference_date=date.today(),
+            settings=settings,
         )
         # Build days list using the same logic as compose (but we can reuse the private method directly)
         # For simplicity, we manually construct a days list representing the week where
@@ -90,8 +90,8 @@ def test_streak_count_no_gap_breaks_on_miss():
         )
         settings = {"streak_allowed_gap": 0}
         card = StreakCard(
-            history_store=history_store,
             reference_date=date.today(),
+            settings=settings,
         )
         days = []
         # Monday (missed)

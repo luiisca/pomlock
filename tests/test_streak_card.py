@@ -37,7 +37,7 @@ def test_streak_card_logic():
         print(f"Today: {today}")
 
         # Test with no focus recorded
-        streak_card = StreakCard(history_store=history_store, reference_date=today)
+        streak_card = StreakCard(reference_date=today)
         # Access the compose method indirectly by checking the logic
 
         # Manually test the logic for today
@@ -53,7 +53,11 @@ def test_streak_card_logic():
             if daily_goal > 0:
                 activity_name = act.get("name", "").lower()
                 focused_minutes = focus_by_activity.get(activity_name, 0)
-                print(f"Activity {activity_name}: goal={daily_goal}, focused={focused_minutes}")
+                print(
+                    f"Activity {activity_name}: goal={daily_goal}, focused={
+                        focused_minutes
+                    }"
+                )
                 if focused_minutes < daily_goal:
                     all_goals_met = False
         print(f"All goals met today (no records): {all_goals_met}")
@@ -81,12 +85,18 @@ def test_streak_card_logic():
             if daily_goal > 0:
                 activity_name = act.get("name", "").lower()
                 focused_minutes = focus_by_activity.get(activity_name, 0)
-                print(f"Activity {activity_name}: goal={daily_goal}, focused={focused_minutes}")
+                print(
+                    f"Activity {activity_name}: goal={daily_goal}, focused={
+                        focused_minutes
+                    }"
+                )
                 if focused_minutes < daily_goal:
                     all_goals_met = False
         print(f"All goals met today (after coding): {all_goals_met}")
         # Reading goal is not met, so overall should be False
-        assert not all_goals_met, "Should not meet goals because reading goal is not met"
+        assert not all_goals_met, (
+            "Should not meet goals because reading goal is not met"
+        )
 
         # Now add a focus record for reading: 30 minutes (meets goal)
         history_store.record(
@@ -102,7 +112,11 @@ def test_streak_card_logic():
         focus_by_activity = history_store.get_period_focus_by_activity(
             period=GoalPeriod.DAILY, target_date=today
         )
-        print(f"Focus by activity for today (after coding and reading): {focus_by_activity}")
+        print(
+            f"Focus by activity for today (after coding and reading): {
+                focus_by_activity
+            }"
+        )
 
         all_goals_met = True
         for act in activities:
@@ -110,7 +124,11 @@ def test_streak_card_logic():
             if daily_goal > 0:
                 activity_name = act.get("name", "").lower()
                 focused_minutes = focus_by_activity.get(activity_name, 0)
-                print(f"Activity {activity_name}: goal={daily_goal}, focused={focused_minutes}")
+                print(
+                    f"Activity {activity_name}: goal={daily_goal}, focused={
+                        focused_minutes
+                    }"
+                )
                 if focused_minutes < daily_goal:
                     all_goals_met = False
         print(f"All goals met today (after coding and reading): {all_goals_met}")
@@ -140,10 +158,62 @@ def test_streak_card_logic():
                 if focused_minutes < daily_goal:
                     all_goals_met_yesterday = False
         print(f"All goals met yesterday: {all_goals_met_yesterday}")
-        assert not all_goals_met_yesterday, "Yesterday should not meet goals (no records)"
+        assert not all_goals_met_yesterday, (
+            "Yesterday should not meet goals (no records)"
+        )
 
         print("All streak card logic tests passed!")
 
 
+def test_streak_card_settings_subscription():
+    """Test that StreakCard subscribes to Settings updates."""
+    from pomlock.settings import Settings
+
+    card = StreakCard()
+    called = False
+
+    def mock_recompose():
+        nonlocal called
+        called = True
+
+    card.recompose = mock_recompose
+    card.on_mount()
+
+    # Trigger notification
+    Settings().notify()
+    assert called, "StreakCard should re-compose when Settings notifies updates"
+
+    # Reset and test unmount
+    called = False
+    card.on_unmount()
+    Settings().notify()
+    assert not called, "StreakCard should not update after unmount"
+
+
+def test_streak_card_week_start_update():
+    """Test that StreakCard updates week start day when Settings changes."""
+    from pomlock.settings import Settings
+    from textual.app import App, ComposeResult
+
+    class TestApp(App):
+        def compose(self) -> ComposeResult:
+            yield StreakCard()
+
+    Settings()["localization"] = {"week_start_day": "sunday"}
+    app = TestApp()
+    
+    async def _test():
+        async with app.run_test() as pilot:
+            card = app.query_one(StreakCard)
+            labels = [str(lbl.render()) for lbl in card.query("Label")]
+            assert "Sun" in labels
+
+    import asyncio
+    asyncio.run(_test())
+
+
 if __name__ == "__main__":
     test_streak_card_logic()
+    test_streak_card_settings_subscription()
+    test_streak_card_week_start_update()
+

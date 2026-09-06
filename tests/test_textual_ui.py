@@ -1,6 +1,7 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from pomlock.constants import SessionKind
 from pomlock.history_store import HistoryStore
@@ -13,30 +14,25 @@ from pomlock.ui.widgets.stats_chart_card import StatsChartCard
 from pomlock.ui.widgets.timer_card import TimerCard
 from textual.widgets import Button, Label
 
+import pomlock.settings as settings_module
+from pomlock.settings import Settings
+
 
 class TestTextualUI(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.csv_path = Path(self.temp_dir.name) / "test_history.csv"
-        self.history_store = HistoryStore(file_path=self.csv_path)
-        self.settings = {
-            "pomodoro": 25,
-            "short_break": 5,
-            "long_break": 15,
-            "cycles": 4,
-            "activity": "coding",
-            "block_input": False,
-            "overlay": False,
-            "notify": False,
-            "callback": "",
-            "goals": {
-                "total": "420",
-                "coding": "240",
-                "reading": "40",
-            },
-        }
+        self.db_path = Path(self.temp_dir.name) / "test_history.db"
+        self.history_store = HistoryStore(db_path=self.db_path)
+
+        # Isolate Settings — use clean temp config (standard preset: 25 5 20 4)
+        self._conf_path = Path(self.temp_dir.name) / "test.conf"
+        Settings.reset()
+        self._conf_patcher = patch.object(settings_module, "DEFAULT_CONFIG_FILE", self._conf_path)
+        self._conf_patcher.start()
 
     async def asyncTearDown(self):
+        Settings.reset()
+        self._conf_patcher.stop()
         self.temp_dir.cleanup()
 
     async def test_screens_and_navigation(self):
@@ -184,8 +180,9 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record["completed"], "False")
 
     async def test_custom_activity_flag(self):
-        custom_settings = dict(self.settings)
-        custom_settings["activity"] = "reading"
+        # Seed config with activity = reading, then re-init Settings
+        self._conf_path.write_text("[general]\nactivity = reading\n")
+        Settings.reset()
         app = PomlockApp(history_store=self.history_store)
         async with app.run_test() as pilot:
             await pilot.pause()
