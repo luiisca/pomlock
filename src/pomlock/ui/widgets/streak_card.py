@@ -43,8 +43,13 @@ class StreakCard(Vertical):
         activities = settings.get("activities", {})
         goals: dict[str, int] = {}
 
+        # 'all', 'total', and 'auto_calc' are meta-keys, not trackable activities.
+        _META = {"all", "total", "auto_calc"}
+
         if isinstance(activities, dict):
             for name, data in activities.items():
+                if name.lower() in _META:
+                    continue
                 if isinstance(data, dict):
                     val = data.get("daily", 0)
                 else:
