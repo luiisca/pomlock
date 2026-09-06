@@ -11,7 +11,7 @@ Screen {
 }
 
 /* --- Top Navigation Bar --- */
-TopNavBar.top-navbar-container {
+.top-navbar-container {
     height: 3;
     width: 100%;
     background: $surface;
@@ -72,6 +72,52 @@ TopNavBar.top-navbar-container {
     padding-top: 0;
 }
 
+/* Improved button hover effects */
+.button:hover {
+    background: $boost;
+}
+
+
+.button:disabled {
+    background: $panel-darken-1;
+    color: $text-disabled;
+}
+
+/* Scrollbar styling */
+#scrollbar {
+    background: $panel;
+    border: none;
+}
+
+#scrollbar--thumb {
+    background: $boost;
+    border: round $panel;
+}
+
+#scrollbar--thumb:hover {
+    background: $accent;
+}
+
+/* Enhanced container hover effects */
+.settings-row:hover {
+    background: $surface-lighten-1;
+}
+
+.activity-row:hover {
+    background: $surface-lighten-1;
+}
+
+/* Focus states for specific interactive elements */
+.settings-input:focus {
+    background: $surface-lighten-1;
+    border-title-color: $accent;
+}
+
+.settings-select:focus {
+    background: $surface-lighten-1;
+    border-title-color: $accent;
+}
+
 .card-title {
     text-style: bold;
     color: $text-primary;
@@ -123,7 +169,7 @@ TopNavBar.top-navbar-container {
 }
 
 /* --- Timer Card --- */
-TimerCard.timer-box {
+.timer-box {
     height: 18;
     margin-bottom: 1;
 }
@@ -224,13 +270,13 @@ TimerCard.timer-box {
     width: 100%;
 }
 
-GoalsCard.goals-box {
+.goals-box {
     width: 1fr;
     height: 100%;
     margin-right: 1;
 }
 
-StatsChartCard.stats-chart-box {
+.stats-chart-box {
     width: 1fr;
     height: 100%;
 }
@@ -315,6 +361,23 @@ StatsChartCard.stats-chart-box {
     background: $boost;
 }
 
+.btn-chart-act {
+    min-width: 5;
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    margin-left: 1;
+    background: transparent;
+    border: none;
+    color: $primary;
+    text-style: bold;
+}
+
+.btn-chart-act:hover {
+    color: $accent;
+    background: $boost;
+}
+
 .date-range-header {
     text-align: center;
     color: $text-muted;
@@ -328,8 +391,13 @@ StatsChartCard.stats-chart-box {
     height: 1fr;
 }
 
+#stats-plot-widget {
+    height: 1fr;
+    width: 100%;
+}
+
 /* --- Right Column: Streak & Activity List --- */
-StreakCard.streak-box {
+.streak-box {
     height: 6;
     margin-bottom: 1;
 }
@@ -368,7 +436,7 @@ StreakCard.streak-box {
     text-align: center;
 }
 
-ActivityListCard.activity-list-box {
+.activity-list-box {
     height: 1fr;
 }
 
@@ -443,7 +511,7 @@ ActivityListCard.activity-list-box {
 }
 
 /* --- Stats Screen --- */
-StatsHeader.stats-header-bar {
+.stats-header-bar {
     height: 5;
     background: $surface;
     border: round $secondary-darken-2;
@@ -649,7 +717,7 @@ StatsHeader.stats-header-bar {
 }
 
 /* --- Zen Mode Expansion --- */
-.zen-active TopNavBar,
+.zen-active .top-navbar-container,
 .zen-active .main-bottom-row,
 .zen-active .main-right-column {
     display: none;
@@ -667,7 +735,7 @@ StatsHeader.stats-header-bar {
     margin: 0;
 }
 
-TimerCard.zen-mode {
+.timer-card.zen-mode {
     width: 100%;
     height: 100%;
     border: double $accent;
@@ -675,13 +743,13 @@ TimerCard.zen-mode {
     padding: 2 4;
 }
 
-TimerCard.zen-mode .timer-display-row {
+.timer-card.zen-mode .timer-display-row {
     height: 7;
     margin-top: 1;
     margin-bottom: 1;
 }
 
-TimerCard.zen-mode #timer-progress {
+.timer-card.zen-mode #timer-progress {
     height: 3;
     margin-top: 2;
     margin-bottom: 2;
@@ -792,8 +860,9 @@ TimerCard.zen-mode #timer-progress {
     margin-left: 1;
 }
 
+
 .goals-group {
-    margin-top: 1;
+    margin-top: 2;
 }
 
 .goals-row {
@@ -868,7 +937,7 @@ TimerCard.zen-mode #timer-progress {
 }
 
 .timer-values-group {
-    margin-top: 1;
+    margin-top: 2;
 }
 
 /* Action buttons --------------------------------------------- */
@@ -915,3 +984,51 @@ TimerCard.zen-mode #timer-progress {
 .settings-container .color-preview {
     width: auto;
 }
+
+
+
+
+/* Better spacing consistency */
+.spacing-xs {
+    height: 1;
+}
+
+.spacing-sm {
+    height: 2;
+}
+
+.spacing-md {
+    height: 3;
+}
+
+.spacing-lg {
+    height: 4;
+}
+
+.spacing-xl {
+    height: 6;
+}
+
+/* Text alignment utilities */
+.text-left {
+    text-align: left;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.text-right {
+    text-align: right;
+}
+
+
+/* Overflow utilities */
+.overflow-auto {
+    overflow: auto;
+}
+
+.overflow-hidden {
+    overflow: hidden;
+}
+

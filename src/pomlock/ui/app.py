@@ -29,6 +29,7 @@ class PomlockApp(App):
     BINDINGS = [
         Binding("z", "toggle_zen", "Zen Mode"),
         Binding("g", "cycle_goals", "Cycle Goals"),
+        Binding("a", "cycle_chart_activity", "Cycle Activity"),
         Binding("space", "toggle_timer", "Toggle Pause"),
         Binding("r", "reset_timer", "Reset"),
         Binding("s", "skip_timer", "Skip"),
@@ -48,6 +49,7 @@ class PomlockApp(App):
     ):
         super().__init__()
         self.history_store = history_store or HistoryStore()
+        self.settings = Settings()
 
         self.engine = TimerEngine(
             history_store=self.history_store,
@@ -183,6 +185,13 @@ class PomlockApp(App):
             new_period = self.screen.cycle_goals_period()
             if new_period and hasattr(self, "notify"):
                 self.notify(f"Goals timeframe: {new_period.value}", title="Goals View")
+
+    def action_cycle_chart_activity(self) -> None:
+        """Cycle activity filter on main screen stats chart."""
+        if isinstance(self.screen, MainScreen):
+            new_act = self.screen.cycle_chart_activity()
+            if new_act and hasattr(self, "notify"):
+                self.notify(f"Activity: {new_act}", title="Stats Activity")
 
     def action_show_main(self) -> None:
         try:

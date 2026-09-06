@@ -63,6 +63,14 @@ class MainScreen(Screen):
         except Exception:
             return None
 
+    def cycle_chart_activity(self) -> Optional[str]:
+        """Cycle activity filter on the StatsChartCard."""
+        try:
+            card = self.query_one(StatsChartCard)
+            return card.cycle_activity()
+        except Exception:
+            return None
+
     def update_live_goals(
         self, active_activity: Optional[str], session_elapsed_s: float
     ) -> None:

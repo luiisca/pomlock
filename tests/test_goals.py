@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
@@ -26,6 +26,14 @@ class GoalsTestApp(App):
 
 class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
     """Comprehensive test suite for Today's Goals widget."""
+
+    def setUp(self):
+        Settings._instance = None
+        self._conf_patcher = patch.object(Settings, '_get_conf_settings', return_value={})
+        self._conf_patcher.start()
+
+    def tearDown(self):
+        self._conf_patcher.stop()
 
     def test_parse_duration_string(self):
         """Test parsing various string formats into minutes."""
@@ -54,13 +62,12 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             }
         ]
 
-        settings = {
-            "goals": {
-                "coding": "4h",
-            },
+        app = GoalsTestApp(history_store=mock_history)
+        activities_settings = {
+            "coding": {"daily": 240},
+            "auto_calc": True,
         }
-
-        app = GoalsTestApp( history_store=mock_history)
+        app.settings["activities"] = activities_settings
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -128,7 +135,17 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        app = GoalsTestApp( history_store=mock_history)
+        app = GoalsTestApp(history_store=mock_history)
+        # Build activities settings from the mock history
+        activities_settings = {
+            "coding": {"daily": 240},
+            "reading": {"daily": 40},
+            "studying": {"daily": 60},
+            "gaming": {"daily": 0},
+            "all": {"daily": 480},
+            "auto_calc": False,
+        }
+        app.settings["activities"] = activities_settings
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -176,7 +193,15 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        app = GoalsTestApp( history_store=mock_history)
+        Settings._instance = None
+        app = GoalsTestApp(history_store=mock_history)
+        # Build activities settings from the mock history
+        activities_settings = {
+            "coding": {"daily": 120, "weekly": 600, "monthly": 2640, "yearly": 31200},
+            "all": {"daily": 240, "weekly": 1200, "monthly": 5280, "yearly": 62400},
+            "auto_calc": False,
+        }
+        app.settings["activities"] = activities_settings
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -216,7 +241,7 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             }
         ]
 
-        app = GoalsTestApp( history_store=mock_history)
+        app = GoalsTestApp(history_store=mock_history)
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -256,14 +281,20 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             for index in range(12)
         ]
 
-        app = GoalsTestApp( history_store=mock_history)
+        app = GoalsTestApp(history_store=mock_history)
+        # Build activities settings for the 12 activities
+        activities_settings = {
+            f"activity-{index}": {"daily": 60} for index in range(12)
+        }
+        activities_settings["auto_calc"] = True
+        app.settings["activities"] = activities_settings
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
             container = card.query_one("#goals-entries-container", VerticalScroll)
 
             self.assertTrue(container.can_focus)
-            self.assertEqual(len(container.children), 12)
+            self.assertEqual(len(container.children), 13)
 
     async def test_active_indicator_across_activities_and_progress_movement(self):
         """Test active indicator switching across activities and moving progress bar."""
@@ -297,8 +328,14 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        settings = {}
-        app = GoalsTestApp( history_store=mock_history)
+        app = GoalsTestApp(history_store=mock_history)
+        # Override activities settings to match the mock history
+        app.settings["activities"] = {
+            "coding": {"daily": 240, "weekly": 1200, "monthly": 5280, "yearly": 62400},
+            "reading": {"daily": 40, "weekly": 200, "monthly": 880, "yearly": 10400},
+            "studying": {"daily": 60, "weekly": 300, "monthly": 1320, "yearly": 15600},
+            "auto_calc": True,
+        }
         async with app.run_test() as pilot:
             await pilot.pause()
             card = app.query_one(GoalsCard)
@@ -364,7 +401,12 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             }
         ]
 
-        app = GoalsTestApp( history_store=mock_history)
+        app = GoalsTestApp(history_store=mock_history)
+        activities_settings = {
+            "reading": {"daily": 40},
+            "auto_calc": True,
+        }
+        app.settings["activities"] = activities_settings
         app.notify = MagicMock()
 
         async with app.run_test() as pilot:
@@ -384,14 +426,14 @@ class TestGoalsWidget(unittest.IsolatedAsyncioTestCase):
             # Encouragement badge appears
             badge = card.query_one("#goal-badge-reading")
             self.assertIn("Goal Completed", str(badge.render()))
-            self.assertEqual(app.notify.call_count, 1)
+            self.assertEqual(app.notify.call_count, 2)
 
             # Refresh again (e.g. at 45m) - notification should not be repeated
             mock_history.get_period_focus_by_activity.return_value["reading"] = 45
             card.refresh_goals()
             await pilot.pause()
 
-            self.assertEqual(app.notify.call_count, 1)
+            self.assertEqual(app.notify.call_count, 2)
 
 
 if __name__ == "__main__":

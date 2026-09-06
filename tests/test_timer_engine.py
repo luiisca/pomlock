@@ -6,6 +6,8 @@ from unittest.mock import patch
 from pomlock.constants import SessionKind, TimerState
 from pomlock.history_store import HistoryStore
 from pomlock.timer_engine import TimerEngine
+import pomlock.settings as settings_module
+from pomlock.settings import Settings
 
 
 class TestTimerEngine(unittest.TestCase):
@@ -13,21 +15,19 @@ class TestTimerEngine(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "test_history.db"
         self.history_store = HistoryStore(db_path=self.db_path)
-        self.settings = {
-            "pomodoro": 25,
-            "short_break": 5,
-            "long_break": 15,
-            "cycles": 2,
-            "activity": "testing",
-            "block_input": False,
-            "notify": False,
-            "callback": "",
-        }
-        self.engine = TimerEngine(
-            history_store=self.history_store,
-        )
+
+        # Isolate Settings from the real user config; set cycles=2 for phase tests
+        self._conf_path = Path(self.temp_dir.name) / "test.conf"
+        self._conf_path.write_text("[general]\ntimer = 25 5 20 2\n")
+        Settings.reset()
+        self._conf_patcher = patch.object(settings_module, "DEFAULT_CONFIG_FILE", self._conf_path)
+        self._conf_patcher.start()
+
+        self.engine = TimerEngine(history_store=self.history_store)
 
     def tearDown(self):
+        Settings.reset()
+        self._conf_patcher.stop()
         self.temp_dir.cleanup()
 
     def test_initial_state(self):

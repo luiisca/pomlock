@@ -45,41 +45,14 @@ class Database:
                     )
                 """)
 
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS activities (
-                        name TEXT PRIMARY KEY,
-                        daily_goal INTEGER NOT NULL DEFAULT 0,
-                        weekly_goal INTEGER NOT NULL DEFAULT 0,
-                        monthly_goal INTEGER NOT NULL DEFAULT 0,
-                        yearly_goal INTEGER NOT NULL DEFAULT 0,
-                        color TEXT
-                    )
-                """)
+                # Activities (names, goals, colors) live in the config file;
+                # drop the legacy table if it exists.
+                conn.execute("DROP TABLE IF EXISTS activities")
                 conn.commit()
 
             logger.debug(f"Initialized SQLite database at {self._path}")
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize SQLite database: {e}")
-
-    def ensure_activity(self, name: str) -> None:
-        """Ensure an activity exists in the database, inserting with 0 goals if missing."""
-        clean_name = name.strip().lower()
-        if not clean_name:
-            return
-
-        try:
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO activities (name, daily_goal, weekly_goal, monthly_goal, yearly_goal, color)
-                    VALUES (?, 0, 0, 0, 0, NULL)
-                    """,
-                    (clean_name,),
-                )
-                conn.commit()
-            logger.debug(f"Ensured activity '{clean_name}' exists in database")
-        except sqlite3.Error as e:
-            logger.error(f"Failed to ensure activity '{clean_name}': {e}")
 
     def start_block(
         self,
@@ -90,8 +63,6 @@ class Database:
         timestamp: Optional[str] = None,
     ) -> str:
         """Insert a new active block with 0 duration and return its ID."""
-        self.ensure_activity(activity)
-
         block_id = str(uuid.uuid4())
         now_str = timestamp or datetime.now().isoformat()
         type_val = kind.value if isinstance(kind, SessionKind) else str(kind)
@@ -216,47 +187,37 @@ class Database:
 
         return totals
 
-    def get_activities(self) -> list[dict[str, Any]]:
-        """Return all defined activities and their multi-period goals in minutes."""
+    def get_focus_records_in_range(
+        self,
+        start_iso: str,
+        end_iso: str,
+        activity: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch pomodoro focus records within an ISO timestamp range."""
+        query = """
+            SELECT timestamp, duration_s, activity
+            FROM pomodoros
+            WHERE session_type = ? AND timestamp >= ? AND timestamp < ?
+        """
+        params: list[Any] = [SessionKind.POMODORO.value, start_iso, end_iso]
+
+        if activity and activity.lower() != "all":
+            query += " AND LOWER(activity) = ?"
+            params.append(activity.lower())
+
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT name, daily_goal, weekly_goal, monthly_goal, yearly_goal, color
-                    FROM activities
-                    ORDER BY name ASC
-                """)
-                return [dict(row) for row in cursor.fetchall()]
+                cursor.execute(query, params)
+                return [
+                    {
+                        "timestamp": row["timestamp"],
+                        "duration_s": row["duration_s"],
+                        "activity": row["activity"],
+                    }
+                    for row in cursor.fetchall()
+                ]
         except sqlite3.Error as e:
-            logger.error(f"Failed to query activities: {e}")
+            logger.error(f"Failed to query focus records in range: {e}")
             return []
 
-    def save_activity(
-        self,
-        name: str,
-        daily_goal: int,
-        weekly_goal: int,
-        monthly_goal: int,
-        yearly_goal: int,
-        color: Optional[str] = None,
-    ) -> None:
-        """Insert or update activity goals in minutes."""
-        try:
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO activities (name, daily_goal, weekly_goal, monthly_goal, yearly_goal, color)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(name) DO UPDATE SET
-                        daily_goal = excluded.daily_goal,
-                        weekly_goal = excluded.weekly_goal,
-                        monthly_goal = excluded.monthly_goal,
-                        yearly_goal = excluded.yearly_goal,
-                        color = excluded.color
-                    """,
-                    (name.lower(), daily_goal, weekly_goal, monthly_goal, yearly_goal, color),
-                )
-                conn.commit()
-            logger.debug(f"Saved activity {name} goals")
-        except sqlite3.Error as e:
-            logger.error(f"Failed to save activity {name}: {e}")

@@ -1,7 +1,6 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
-import random
 
 from .constants import DEFAULT_DB_FILE, GoalPeriod, SessionKind
 from .db import BlockStatus, Database
@@ -90,31 +89,66 @@ class HistoryStore:
     def get_weekly_focus_by_day(
         self,
         week_offset: int = 0,
+        activity: Optional[str] = None,
+        week_start_day: Optional[str | int] = None,
+        reference_date: Optional[date] = None,
     ) -> tuple[str, list[tuple[date, int]]]:
         """Return formatted week range label and 7-day focus minute pairs."""
-        today = date.today()
-        start_of_current_week = today - timedelta(days=today.weekday())
+        # Resolve week start day from settings if not explicitly provided
+        if week_start_day is None:
+            from .settings import Settings
+            settings = Settings()
+            loc_data = settings.get("localization", {}) if isinstance(settings.get("localization"), dict) else {}
+            week_start_day = loc_data.get("week_start_day", "monday")
+
+        day_map = {
+            "monday": 0, "mon": 0,
+            "tuesday": 1, "tue": 1,
+            "wednesday": 2, "wed": 2,
+            "thursday": 3, "thu": 3,
+            "friday": 4, "fri": 4,
+            "saturday": 5, "sat": 5,
+            "sunday": 6, "sun": 6,
+        }
+        start_idx = (
+            day_map.get(str(week_start_day).lower(), 0)
+            if isinstance(week_start_day, str)
+            else int(week_start_day or 0) % 7
+        )
+
+        # Calculate week boundaries using calendar dates
+        today = reference_date or date.today()
+        days_to_subtract = (today.weekday() - start_idx) % 7
+        start_of_current_week = today - timedelta(days=days_to_subtract)
         start_of_week = start_of_current_week + timedelta(weeks=week_offset)
         end_of_week = start_of_week + timedelta(days=6)
 
         label = f"{start_of_week.day}/{start_of_week.month} - {end_of_week.day}/{end_of_week.month}"
 
-        records = self.get_records()
+        # Initialize all 7 days with zero duration
         day_minutes: dict[date, int] = {
             start_of_week + timedelta(days=i): 0 for i in range(7)
         }
 
-        for r in records:
-            if r.get("session_type") != SessionKind.POMODORO.value:
-                continue
+        # Query database for pomodoro focus records in week range
+        start_iso = datetime(start_of_week.year, start_of_week.month, start_of_week.day).isoformat()
+        end_dt = datetime(end_of_week.year, end_of_week.month, end_of_week.day) + timedelta(days=1)
+        end_iso = end_dt.isoformat()
 
+        records = self._db.get_focus_records_in_range(
+            start_iso=start_iso,
+            end_iso=end_iso,
+            activity=activity,
+        )
+
+        for r in records:
             ts_str = r.get("timestamp", "")
             try:
                 rec_dt = datetime.fromisoformat(ts_str)
                 rec_date = rec_dt.date()
                 if rec_date in day_minutes:
-                    dur = int(r.get("duration_minutes", 0))
-                    day_minutes[rec_date] += dur
+                    dur_s = int(r.get("duration_s", 0))
+                    day_minutes[rec_date] += dur_s // 60
             except (ValueError, TypeError):
                 continue
 
@@ -154,36 +188,3 @@ class HistoryStore:
         parsed.sort(key=lambda x: x["datetime"], reverse=not ascending)
         return parsed
 
-    def get_activities(self) -> list[dict[str, Any]]:
-        """Return all activity definitions and multi-timeframe goals."""
-        activities = self._db.get_activities()
-
-        # Assign random colors to activities that don't have one
-        for activity in activities:
-            if not activity.get('color'):
-                activity['color'] = self._generate_random_color()
-
-        return activities
-
-    def _generate_random_color(self) -> str:
-        """Generate a random hex color."""
-        return "#{:06x}".format(random.randint(0, 0xFFFFFF))
-
-    def save_activity(
-        self,
-        name: str,
-        daily_goal: int,
-        weekly_goal: int,
-        monthly_goal: int,
-        yearly_goal: int,
-        color: Optional[str] = None,
-    ) -> None:
-        """Save activity goals in minutes to SQLite database."""
-        self._db.save_activity(
-            name=name,
-            daily_goal=daily_goal,
-            weekly_goal=weekly_goal,
-            monthly_goal=monthly_goal,
-            yearly_goal=yearly_goal,
-            color=color,
-        )

@@ -6,7 +6,6 @@ from textual.widgets import Label
 
 from ...constants import (
     ACTIVE_GOAL_INDICATOR,
-    DEFAULT_GOALS,
     GOAL_COMPLETED_TEXT,
     WORK_DAYS_PER_MONTH,
     WORK_DAYS_PER_WEEK,
@@ -14,11 +13,9 @@ from ...constants import (
     GoalPeriod,
 )
 from ...history_store import HistoryStore
+from ...settings import Settings
 from ...utils import format_hm, parse_duration_m
 from .timer_card import ThickProgressBar
-
-DEFAULT_TOTAL_GOAL_MINUTES = 420
-DEFAULT_ACTIVITY_GOAL_MINUTES = 60
 
 
 def _format_diff(tracked_m: int, target_m: int) -> str:
@@ -84,6 +81,11 @@ class GoalsCard(Vertical):
         """Populate and refresh goals periodically."""
         self.refresh_goals()
         self.set_interval(60.0, self.refresh_goals)
+        Settings.subscribe(self.refresh_goals)
+
+    def on_unmount(self) -> None:
+        """Unsubscribe from settings updates."""
+        Settings.unsubscribe(self.refresh_goals)
 
     def set_active_activity(self, activity: str | None) -> None:
         """Update currently tracked activity and refresh goal indicators."""
@@ -163,8 +165,15 @@ class GoalsCard(Vertical):
 
     def refresh_goals(self) -> None:
         """Query history store and update goal progress with prioritized sorting."""
-        history_store = getattr(self.app, "history_store", None) or HistoryStore()
-        settings = getattr(self.app, "settings", {})
+        try:
+            app = self.app
+        except Exception:
+            app = None
+
+        history_store = getattr(app, "history_store", None) or HistoryStore()
+        settings_obj = getattr(app, "settings", None) or Settings()
+        activities_settings = settings_obj.get("activities", {})
+        auto_calc = activities_settings.get("auto_calc", True)
 
         try:
             self.border_title = f"{self._current_period.value} goals"
@@ -179,52 +188,30 @@ class GoalsCard(Vertical):
 
         total_base_s = sum(self._base_tracked_s.values())
 
-        # Retrieve configured activities from SQLite or settings fallback
-        db_activities = history_store.get_activities()
+        period_str = self._current_period.value
+        all_goals = activities_settings.get("all", {})
+        total_target = parse_duration_m(all_goals.get(period_str, 0))
+
+        # Fallback to sum of activity goals if all_goals wasn't populated
+        if auto_calc and total_target == 0:
+            for act_name, goal_dict in activities_settings.items():
+                if act_name in ("total", "all", "auto_calc") or not isinstance(goal_dict, dict):
+                    continue
+                total_target += parse_duration_m(goal_dict.get(period_str, 0))
+
         raw_targets: list[tuple[str, int]] = []
 
-        if db_activities:
-            goal_key_map = {
-                GoalPeriod.DAILY: "daily_goal",
-                GoalPeriod.WEEKLY: "weekly_goal",
-                GoalPeriod.MONTHLY: "monthly_goal",
-                GoalPeriod.YEARLY: "yearly_goal",
-            }
-            goal_col = goal_key_map.get(self._current_period, "daily_goal")
+        # Process activities format for individual activities
+        for activity_name, goal_dict in activities_settings.items():
+            if activity_name in ("total", "all", "auto_calc") or not isinstance(goal_dict, dict):
+                continue
+            target_val = goal_dict.get(period_str, 0)
+            target_m = parse_duration_m(target_val)
+            if target_m > 0:
+                raw_targets.append((activity_name, int(target_m)))
 
-            for act in db_activities:
-                name = act.get("name", "").lower()
-                target_m = act.get(goal_col, 0)
-                if name in ("all", "total"):
-                    raw_targets.append(("total", target_m))
-                else:
-                    raw_targets.append((name, target_m))
-        else:
-            configured_goals = settings.get("goals", DEFAULT_GOALS)
-            multiplier_map = {
-                GoalPeriod.DAILY: 1,
-                GoalPeriod.WEEKLY: WORK_DAYS_PER_WEEK,
-                GoalPeriod.MONTHLY: WORK_DAYS_PER_MONTH,
-                GoalPeriod.YEARLY: WORK_DAYS_PER_YEAR,
-            }
-            mult = multiplier_map.get(self._current_period, 1)
-
-            total_target_val = configured_goals.get("total", DEFAULT_TOTAL_GOAL_MINUTES)
-            total_target = parse_duration_m(total_target_val) * mult
-            if total_target <= 0:
-                total_target = DEFAULT_TOTAL_GOAL_MINUTES * mult
-            raw_targets.append(("total", total_target))
-
-            for key, target_val in configured_goals.items():
-                if key in ("total", "all"):
-                    continue
-
-                act_name = key.lower()
-                target_m = parse_duration_m(target_val) * mult
-                if target_m <= 0:
-                    target_m = DEFAULT_ACTIVITY_GOAL_MINUTES * mult
-
-                raw_targets.append((act_name, target_m))
+        if total_target > 0:
+            raw_targets.insert(0, ("total", int(total_target)))
 
         # Filter: only display activities that have a configured goal > 0
         filtered_targets = [t for t in raw_targets if t[1] > 0]
@@ -249,7 +236,6 @@ class GoalsCard(Vertical):
             ordered_targets.append(total_entry)
         if active_entry:
             ordered_targets.append(active_entry)
-
         for t in filtered_targets:
             if t != total_entry and t != active_entry:
                 ordered_targets.append(t)
@@ -362,6 +348,7 @@ class GoalsCard(Vertical):
                         id=f"goal-diff-{slug}",
                     )
                 )
+
             else:
                 try:
                     sublabel = entry.query_one(f"#goal-sublabel-{slug}", Label)
