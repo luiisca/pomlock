@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/luiisca/pomlock/compare/v4.0.0...v4.0.1) (2026-09-12)
+
+
+### Documentation
+
+* update readme ([3f5886a](https://github.com/luiisca/pomlock/commit/3f5886a75c61e9ab163d74320ccab8a054f56c51))
+
 ## [4.0.0](https://github.com/luiisca/pomlock/compare/v3.0.0...v4.0.0) (2026-09-06)
 
 
