@@ -28,7 +28,7 @@ pipx install pomlock
 uv tool install pomlock
 ```
 
-pomlock is also listed on [Terminal Trove](https://terminaltrove.com).
+<!-- pomlock is also listed on [Terminal Trove](https://terminaltrove.com). -->
 
 
 If you prefer to run without device locking, pass `--no-block-input`.
@@ -188,7 +188,26 @@ Pass a script to execute whenever a session phase changes:
 pomlock --callback /path/to/script.sh
 ```
 
-pomlock sends the current JSON state as the last argument to your script.
+pomlock sends a JSON object as the last argument to your script with the following fields:
+
+```json
+{
+  "action": "pomodoro|short_break|long_break",
+  "time": 1500,
+  "start_time": 1725580800.0,
+  "crr-cycle": 1,
+  "total-cycles": 4,
+  "crr-session": 1
+}
+```
+
+Example callback in `pomlock.conf`:
+
+```ini
+callback = uv run /home/luisca/p/scripts/pomlock_brainfm.py
+```
+
+Note: The action values correspond to the current phase: "pomodoro" (work), "short_break", "long_break".
 
 ## Emergency Restore
 
