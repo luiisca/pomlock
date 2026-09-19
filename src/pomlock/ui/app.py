@@ -177,6 +177,7 @@ class PomlockApp(App):
         self.engine.reset()
 
     def action_skip_timer(self) -> None:
+        print("action_skip_timer called", flush=True)
         self.engine.skip(force=True)
 
     def action_cycle_goals(self) -> None:
