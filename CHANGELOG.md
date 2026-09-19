@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.4](https://github.com/luiisca/pomlock/compare/v4.0.3...v4.0.4) (2026-09-19)
+
+
+### Bug Fixes
+
+* focus/break loop ([eb70b50](https://github.com/luiisca/pomlock/commit/eb70b509fb02532ab49337974c728702a68bafa1))
+
 ## [4.0.3](https://github.com/luiisca/pomlock/compare/v4.0.2...v4.0.3) (2026-09-19)
 
 
