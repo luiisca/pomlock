@@ -168,7 +168,7 @@ class PomlockApp(App):
 
     @on(TimerCard.SkipRequested)
     def on_timer_card_skip_requested(self, event: TimerCard.SkipRequested) -> None:
-        self.engine.skip()
+        self.engine.skip(force=True)
 
     def action_toggle_timer(self) -> None:
         self.engine.toggle_pause()
@@ -177,7 +177,7 @@ class PomlockApp(App):
         self.engine.reset()
 
     def action_skip_timer(self) -> None:
-        self.engine.skip()
+        self.engine.skip(force=True)
 
     def action_cycle_goals(self) -> None:
         """Cycle timeframe displayed on main screen GoalsCard."""

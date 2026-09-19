@@ -6,7 +6,13 @@ from collections.abc import Callable
 from pomlock.settings import Settings
 from pomlock.utils import parse_timer_m, to_bool
 
-from .constants import STATE_FILE, Pomodoro, SessionKind, TimerState
+from .constants import (
+    MIN_SKIP_INTERVAL_S,
+    STATE_FILE,
+    Pomodoro,
+    SessionKind,
+    TimerState,
+)
 from .history_store import HistoryStore
 from .input_handler import disable_input_devices, enable_input_devices
 from .logger import logger
@@ -46,6 +52,7 @@ class TimerEngine:
         self.duration_s = int(round(self.pomo_m * 60))
         self.elapsed_s = 0.0
         self._last_tick_time = 0.0
+        self._last_phase_change_time = 0.0
         self._current_block_id: str | None = None
         self._is_cleaned_up = False
 
@@ -110,8 +117,15 @@ class TimerEngine:
         if self._on_tick:
             self._on_tick(self.remaining_s, self.progress_pct)
 
-    def skip(self) -> None:
+    def skip(self, force: bool = False) -> None:
         """Skip current phase, flush elapsed time, and advance to next."""
+        now = time.time()
+        if not force and self._last_phase_change_time > 0 and (now - self._last_phase_change_time < MIN_SKIP_INTERVAL_S):
+            logger.debug(
+                f"Ignoring rapid skip request ({now - self._last_phase_change_time:.2f}s since phase change)"
+            )
+            return
+
         self._capture_elapsed()
         self._flush_block(completed=False)
         self._current_block_id = None
@@ -223,7 +237,9 @@ class TimerEngine:
             self.duration_s = int(round(self.pomo_m * 60))
 
         self.elapsed_s = 0.0
-        self._last_tick_time = time.time()
+        now = time.time()
+        self._last_tick_time = now
+        self._last_phase_change_time = now
         self._open_block()
         self._notify_phase_start()
 

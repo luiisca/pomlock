@@ -59,7 +59,7 @@ class TestTimerEngine(unittest.TestCase):
 
     def test_cleanup_records_active_break(self):
         self.engine.start()
-        self.engine.skip()
+        self.engine.skip(force=True)
         self.engine._last_tick_time = 100.0
 
         with patch("pomlock.timer_engine.time.time", return_value=107.0):
@@ -116,7 +116,7 @@ class TestTimerEngine(unittest.TestCase):
 
         # 5. Skip after 10 seconds (10s elapsed on block 2 / pomodoro 2)
         self.engine.elapsed_s = 10.0
-        self.engine.skip()
+        self.engine.skip(force=True)
 
         # 6. Close the app after 5 seconds (5s elapsed on block 3 / break)
         self.engine.elapsed_s = 5.0
@@ -154,22 +154,22 @@ class TestTimerEngine(unittest.TestCase):
         self.assertEqual(self.engine.kind, SessionKind.POMODORO)
 
         # Skip pomodoro -> short break (cycle 1)
-        self.engine.skip()
+        self.engine.skip(force=True)
         self.assertEqual(self.engine.kind, SessionKind.SHORT_BREAK)
         self.assertEqual(self.engine.duration_s, 5 * 60)
 
         # Skip short break -> pomodoro (cycle 2)
-        self.engine.skip()
+        self.engine.skip(force=True)
         self.assertEqual(self.engine.kind, SessionKind.POMODORO)
         self.assertEqual(self.engine.crr_cycle, 2)
 
         # Skip pomodoro cycle 2 -> long break (since total cycles = 2)
-        self.engine.skip()
+        self.engine.skip(force=True)
         self.assertEqual(self.engine.kind, SessionKind.LONG_BREAK)
-        self.assertEqual(self.engine.duration_s, 15 * 60)
+        self.assertEqual(self.engine.duration_s, 20 * 60)
 
         # Skip long break -> new session cycle 1
-        self.engine.skip()
+        self.engine.skip(force=True)
         self.assertEqual(self.engine.kind, SessionKind.POMODORO)
         self.assertEqual(self.engine.crr_cycle, 1)
         self.assertEqual(self.engine.crr_session, 2)
@@ -180,7 +180,7 @@ class TestTimerEngine(unittest.TestCase):
 
         for i in range(16):
             current_kind = self.engine.kind
-            self.engine.skip()
+            self.engine.skip(force=True)
             next_kind = self.engine.kind
 
             if current_kind in (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK):
@@ -195,6 +195,19 @@ class TestTimerEngine(unittest.TestCase):
                     (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK),
                     f"Pomodoro was followed by {next_kind} at step {i}",
                 )
+
+    def test_rapid_skip_ignored(self):
+        """Rapid consecutive skip calls within 1 second of phase start are ignored."""
+        self.engine.start()
+        self.assertEqual(self.engine.kind, SessionKind.POMODORO)
+
+        # First skip transitions Pomodoro -> Short Break
+        self.engine.skip(force=True)
+        self.assertEqual(self.engine.kind, SessionKind.SHORT_BREAK)
+
+        # Immediate second skip call within debounce interval must be ignored
+        self.engine.skip()
+        self.assertEqual(self.engine.kind, SessionKind.SHORT_BREAK)
 
 
 if __name__ == "__main__":

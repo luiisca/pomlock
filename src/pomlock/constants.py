@@ -45,6 +45,10 @@ class TimerState(str, Enum):
     STOPPED = "stopped"
 
 
+MIN_SKIP_INTERVAL_S = 1.0
+
+
+
 class StatsView(str, Enum):
     TODAY = "today"
     WEEK = "this week"
