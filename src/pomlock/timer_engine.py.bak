@@ -17,8 +17,6 @@ from .history_store import HistoryStore
 from .input_handler import disable_input_devices, enable_input_devices
 from .logger import logger
 
-import traceback
-
 
 class TimerEngine:
     """Core state machine and countdown logic for pomlock."""
@@ -121,25 +119,12 @@ class TimerEngine:
 
     def skip(self, force: bool = False) -> None:
         """Skip current phase, flush elapsed time, and advance to next."""
-        if self.kind != SessionKind.POMODORO:
-            logger.debug("Ignoring skip request from break")
-            return
-
         now = time.time()
-        if (
-            not force
-            and self._last_phase_change_time > 0
-            and (now - self._last_phase_change_time < MIN_SKIP_INTERVAL_S)
-        ):
+        if not force and self._last_phase_change_time > 0 and (now - self._last_phase_change_time < MIN_SKIP_INTERVAL_S):
             logger.debug(
-                f"Ignoring rapid skip request ({
-                    now - self._last_phase_change_time:.2f}s since phase change)"
+                f"Ignoring rapid skip request ({now - self._last_phase_change_time:.2f}s since phase change)"
             )
             return
-
-        logger.debug(f"Skip called (force={force}). Stack trace:")
-        for line in traceback.format_stack():
-            logger.debug(line.strip())
 
         self._capture_elapsed()
         self._flush_block(completed=False)
@@ -152,13 +137,6 @@ class TimerEngine:
             return
 
         self._capture_elapsed()
-
-        # Debug logging for tick
-        logger.debug(
-            f"Tick: state={self.state}, elapsed_s={self.elapsed_s:.1f}, duration_s={
-                self.duration_s
-            }, remaining_s={self.remaining_s}"
-        )
 
         if self.elapsed_s >= self.duration_s:
             self.elapsed_s = float(self.duration_s)
@@ -195,8 +173,8 @@ class TimerEngine:
 
         now = time.time()
         delta = max(0.0, now - self._last_tick_time)
-        self.elapsed_s = min(float(self.duration_s), self.elapsed_s + delta)
         self._last_tick_time = now
+        self.elapsed_s = min(float(self.duration_s), self.elapsed_s + delta)
 
     def _open_block(self) -> None:
         """Create new active block entry in database."""

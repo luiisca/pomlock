@@ -1,6 +1,6 @@
 [project]
 name = "pomlock"
-version = "4.0.4"
+version = "4.0.14"
 authors = [
 { name="Luis Cadillo", email="luiiscadillo@gmail.com" },
 ]
@@ -39,13 +39,12 @@ dev = [
     "pytest>=9.1.1",
 ]
 
-# [[tool.uv.index]]
-# name = "testpypi"
-# url = "https://test.pypi.org/simple/"
-# publish-url = "https://test.pypi.org/legacy/"
-# explicit = true
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["textual-docs", ".venv", "build", "dist"]
-

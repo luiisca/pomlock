@@ -1,0 +1,14 @@
+# ~/scratch/pomlock-shim/pyproject.toml
+[project]
+name = "pomlock-shim"
+version = "0.0.0"
+requires-python = ">=3.13.6"
+dependencies = ["pomlock"]
+
+[tool.uv.sources]
+pomlock = { index = "testpypi" }
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+explicit = true

@@ -3,6 +3,7 @@ from pathlib import Path
 from textual import on
 from textual.app import App
 from textual.binding import Binding
+import time
 
 from pomlock.settings import Settings
 
@@ -57,6 +58,7 @@ class PomlockApp(App):
             on_phase_change=self._handle_phase_change,
         )
         self._break_modal: BreakScreen | None = None
+        self._skip_in_progress = False
         self._break_overlay = BreakOverlayManager()
 
         self.add_mode(
@@ -73,7 +75,7 @@ class PomlockApp(App):
         """Start countdown engine and switch to main mode."""
         self.switch_mode("main")
         self.engine.start()
-        self.set_interval(0.2, self._tick_engine)
+        self.set_interval(1, self._tick_engine)
 
     def _tick_engine(self) -> None:
         """Periodic clock update."""
@@ -118,15 +120,21 @@ class PomlockApp(App):
             elif isinstance(self.screen, StatsScreen):
                 self.screen.update_live_goals(active_activity, session_elapsed_s)
 
-            if is_break:
-                self._break_overlay.update_timer(remaining_s)
+            # if is_break:
+            # self._break_overlay.update_timer(remaining_s)
         except Exception:
             pass
 
     def _handle_phase_change(self, kind: SessionKind, duration_m: int) -> None:
         """Respond to phase changes (pomodoro vs break)."""
         is_break = kind in (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
-        overlay_enabled = Settings().get("overlay", True)
+        overlay_setting = Settings().get("overlay", {})
+        if isinstance(overlay_setting, dict):
+            overlay_enabled_str = overlay_setting.get("enabled", "true")
+            overlay_enabled = overlay_enabled_str.lower() == "true"
+        else:
+            overlay_enabled = bool(overlay_setting)
+        logger.debug(f"_handle_phase_change: kind={kind}, is_break={is_break}, overlay_enabled={overlay_enabled}")
 
         if is_break and overlay_enabled:
             # Launch multi-monitor Tkinter break overlay
@@ -135,6 +143,7 @@ class PomlockApp(App):
                 accent = css_vars.get("accent", DEFAULT_OVERLAY_ACCENT)
             except Exception:
                 accent = DEFAULT_OVERLAY_ACCENT
+            logger.debug(f"Starting overlay: break_title={kind.value.replace('_', ' ')}, initial_remaining_s={self.engine.remaining_s}, accent_color={accent}")
 
             self._break_overlay.start_overlay(
                 break_title=kind.value.replace("_", " "),
@@ -143,6 +152,7 @@ class PomlockApp(App):
             )
         elif not is_break:
             # Stop multi-monitor Tkinter overlay
+            logger.debug("Stopping overlay")
             self._break_overlay.stop_overlay()
 
         # Refresh goals, charts, and activity history after a phase change
@@ -170,14 +180,14 @@ class PomlockApp(App):
     def on_timer_card_skip_requested(self, event: TimerCard.SkipRequested) -> None:
         self.engine.skip(force=True)
 
+    def action_skip_timer(self) -> None:
+        self.engine.skip(force=True)
+
     def action_toggle_timer(self) -> None:
         self.engine.toggle_pause()
 
     def action_reset_timer(self) -> None:
         self.engine.reset()
-
-    def action_skip_timer(self) -> None:
-        self.engine.skip(force=True)
 
     def action_cycle_goals(self) -> None:
         """Cycle timeframe displayed on main screen GoalsCard."""
