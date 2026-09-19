@@ -15,6 +15,71 @@ POLL_INTERVAL_MS = 50
 SUBTITLE_TEXT = "Step away from the screen. Input is locked."
 FONT_FAMILY_FALLBACK = "DejaVu Sans Mono"
 CMD_STOP = "STOP"
+TCL_INIT_FILE = "init.tcl"
+TK_INIT_FILE = "tk.tcl"
+ENV_TCL_LIBRARY = "TCL_LIBRARY"
+ENV_TK_LIBRARY = "TK_LIBRARY"
+TCL_SEARCH_PATHS = (
+    "/usr/share/tcltk",
+    "/usr/share",
+    "/usr/lib",
+    "/usr/lib64",
+    "/usr/lib/tcltk",
+    "/usr/local/share",
+    "/usr/local/lib",
+)
+
+
+def find_tcl_dir(filename: str) -> Optional[str]:
+    """Find directory containing target Tcl/Tk configuration file."""
+    env_var = ENV_TCL_LIBRARY if filename == TCL_INIT_FILE else ENV_TK_LIBRARY
+    existing_path = os.environ.get(env_var)
+    if existing_path and os.path.exists(os.path.join(existing_path, filename)):
+        return existing_path
+
+    prefixes = [sys.base_prefix, sys.prefix]
+    for p in prefixes:
+        lib_dir = os.path.join(p, "lib")
+        if not os.path.exists(lib_dir):
+            continue
+
+        for entry in os.listdir(lib_dir):
+            target = os.path.join(lib_dir, entry)
+            if os.path.isdir(target) and os.path.exists(os.path.join(target, filename)):
+                return target
+
+    for base_dir in TCL_SEARCH_PATHS:
+        if not os.path.exists(base_dir):
+            continue
+
+        try:
+            for entry in os.listdir(base_dir):
+                target = os.path.join(base_dir, entry)
+                if not os.path.isdir(target):
+                    continue
+
+                if os.path.exists(os.path.join(target, filename)):
+                    return target
+
+                for sub in os.listdir(target):
+                    sub_target = os.path.join(target, sub)
+                    if os.path.isdir(sub_target) and os.path.exists(os.path.join(sub_target, filename)):
+                        return sub_target
+        except OSError:
+            continue
+
+    return None
+
+
+def setup_tcl_env() -> None:
+    """Ensure TCL_LIBRARY and TK_LIBRARY env vars point to valid locations."""
+    tcl_dir = find_tcl_dir(TCL_INIT_FILE)
+    if tcl_dir:
+        os.environ[ENV_TCL_LIBRARY] = tcl_dir
+
+    tk_dir = find_tcl_dir(TK_INIT_FILE)
+    if tk_dir:
+        os.environ[ENV_TK_LIBRARY] = tk_dir
 
 
 def detect_monitors() -> list[tuple[int, int, int, int]]:
@@ -237,6 +302,7 @@ def run_standalone_overlay(
     accent_color: str,
 ) -> None:
     """Run fullscreen overlay covering all monitors."""
+    setup_tcl_env()
     is_hyprland = bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"))
     mins, secs = divmod(initial_remaining_s, 60)
     current_time: list[str] = [f"{mins:02d}:{secs:02d}"]

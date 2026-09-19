@@ -1,8 +1,14 @@
+import os
 import time
 import tkinter as tk
 import unittest
 
-from pomlock.ui.break_overlay import BreakOverlayManager, detect_monitors, draw_vector_clock
+from pomlock.ui.break_overlay import (
+    BreakOverlayManager,
+    detect_monitors,
+    draw_vector_clock,
+    setup_tcl_env,
+)
 
 
 class TestBreakOverlay(unittest.TestCase):
@@ -50,6 +56,12 @@ class TestBreakOverlay(unittest.TestCase):
         overlay.stop_overlay()
         self.assertFalse(overlay._is_active)
         self.assertIsNone(overlay._proc)
+
+    def test_setup_tcl_env(self):
+        setup_tcl_env()
+        tcl_lib = os.environ.get("TCL_LIBRARY")
+        if tcl_lib:
+            self.assertTrue(os.path.exists(os.path.join(tcl_lib, "init.tcl")))
 
 
 if __name__ == "__main__":
