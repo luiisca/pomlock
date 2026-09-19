@@ -35,6 +35,17 @@ def read_status(state_path: Path = STATE_FILE) -> str:
     return f"{action}: {minutes}m ({status})"
 
 
+def is_break_active(state_path: Path = STATE_FILE) -> bool:
+    """Return True if an active break phase is currently running."""
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        action = str(state.get("action", ""))
+        return action in ("short_break", "long_break")
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+
 class InstanceLock:
     """Own an advisory runtime lock for a running Pomlock process."""
 

@@ -58,3 +58,16 @@ class TestInstanceLock(unittest.TestCase):
         self.assertTrue(_focus_x11([123]))
         self.assertEqual(run.call_args_list[0].args, ("xdotool", "search", "--pid", "123"))
         self.assertEqual(run.call_args_list[1].args, ("xdotool", "windowactivate", "--sync", "42"))
+
+    def test_is_break_active(self):
+        from pomlock.instance_lock import is_break_active
+
+        self.state_path.write_text(json.dumps({"action": "short_break"}))
+        self.assertTrue(is_break_active(self.state_path))
+
+        self.state_path.write_text(json.dumps({"action": "long_break"}))
+        self.assertTrue(is_break_active(self.state_path))
+
+        self.state_path.write_text(json.dumps({"action": "pomodoro"}))
+        self.assertFalse(is_break_active(self.state_path))
+

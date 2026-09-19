@@ -6,33 +6,20 @@ from pomlock.constants import DEFAULT_LOG_FILE
 from pomlock.settings import Settings
 
 from .history_store import HistoryStore
-from .instance_lock import InstanceLock, focus_terminal, read_status
+from .instance_lock import InstanceLock, focus_terminal, is_break_active, read_status
 from .logger import logger, setup_logging
 from .ui.app import PomlockApp
 from .utils import format_hm
 
 
 def main() -> None:
-    instance_lock = InstanceLock()
-    if not instance_lock.acquire():
-        if focus_terminal(instance_lock.owner_pid()):
-            return
-
-        status = read_status()
-        print(f"Pomlock already running{f': {status}' if status else '.'}")
-        return
-
-    app = None
-
-    try:
+    if "--show-presets" in sys.argv or "--show-activities" in sys.argv:
         setup_logging(DEFAULT_LOG_FILE, True)
         settings = Settings()
-
         if "--show-presets" in sys.argv:
             for name, value in settings.get("presets", {}).items():
                 print(f"{name}: {value}")
             return
-
         if "--show-activities" in sys.argv:
             activities_config = settings.get("activities", {})
             for activity, goals in activities_config.items():
@@ -49,7 +36,20 @@ def main() -> None:
                     print(activity)
             return
 
-        # setup_logging(settings.get("log_file"), settings.get("verbose"))
+    instance_lock = InstanceLock()
+    if not instance_lock.acquire():
+        if not is_break_active() and focus_terminal(instance_lock.owner_pid()):
+            return
+
+        status = read_status()
+        print(f"Pomlock already running{f': {status}' if status else '.'}")
+        return
+
+    app = None
+
+    try:
+        setup_logging(DEFAULT_LOG_FILE, True)
+        settings = Settings()
         logger.debug(f"Config after loading: {settings}")
 
         history_store = HistoryStore()
