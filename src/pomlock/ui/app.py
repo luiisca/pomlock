@@ -120,35 +120,30 @@ class PomlockApp(App):
             elif isinstance(self.screen, StatsScreen):
                 self.screen.update_live_goals(active_activity, session_elapsed_s)
 
-            # if is_break:
-            # self._break_overlay.update_timer(remaining_s)
         except Exception:
             pass
 
     def _handle_phase_change(self, kind: SessionKind, duration_m: int) -> None:
         """Respond to phase changes (pomodoro vs break)."""
         is_break = kind in (SessionKind.SHORT_BREAK, SessionKind.LONG_BREAK)
-        overlay_setting = Settings().get("overlay", {})
-        if isinstance(overlay_setting, dict):
-            overlay_enabled_str = overlay_setting.get("enabled", "true")
-            overlay_enabled = overlay_enabled_str.lower() == "true"
-        else:
-            overlay_enabled = bool(overlay_setting)
-        logger.debug(f"_handle_phase_change: kind={kind}, is_break={is_break}, overlay_enabled={overlay_enabled}")
+        overlay_enabled = Settings()["overlay"]["enabled"]
+
+        logger.debug(
+            f"_handle_phase_change: kind={kind}, is_break={is_break}, overlay_enabled={
+                overlay_enabled
+            }"
+        )
 
         if is_break and overlay_enabled:
-            # Launch multi-monitor Tkinter break overlay
-            try:
-                css_vars = self.get_css_variables()
-                accent = css_vars.get("accent", DEFAULT_OVERLAY_ACCENT)
-            except Exception:
-                accent = DEFAULT_OVERLAY_ACCENT
-            logger.debug(f"Starting overlay: break_title={kind.value.replace('_', ' ')}, initial_remaining_s={self.engine.remaining_s}, accent_color={accent}")
+            is_long_break = kind is SessionKind.LONG_BREAK
+            logger.debug(
+                f"Starting overlay: is_long_break={is_long_break}, "
+                f"initial_remaining_s={self.engine.remaining_s}"
+            )
 
             self._break_overlay.start_overlay(
-                break_title=kind.value.replace("_", " "),
+                is_long_break=is_long_break,
                 initial_remaining_s=self.engine.remaining_s,
-                accent_color=str(accent),
             )
         elif not is_break:
             # Stop multi-monitor Tkinter overlay

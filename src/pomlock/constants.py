@@ -48,7 +48,6 @@ class TimerState(str, Enum):
 MIN_SKIP_INTERVAL_S = 1.0
 
 
-
 class StatsView(str, Enum):
     TODAY = "today"
     WEEK = "this week"
@@ -119,6 +118,6 @@ ACTIVE_GOAL_INDICATOR = "●"
 GOAL_COMPLETED_TEXT = "🎉 Goal Completed!"
 
 # Fonts and overlay styling
-DEFAULT_OVERLAY_ACCENT = "#b48ead"
+DEFAULT_OVERLAY_ACCENT = "#ffd60a"
 DEFAULT_FONTS_DIR = Path(__file__).parent / "ui" / "fonts"
 DSEG7_FONT_FILE = DEFAULT_FONTS_DIR / "DSEG7Classic-Bold.ttf"

@@ -58,7 +58,11 @@ class Settings(dict):
 
     @property
     def auto_calc(self) -> bool:
-        if "activities" in self and isinstance(self["activities"], dict) and "auto_calc" in self["activities"]:
+        if (
+            "activities" in self
+            and isinstance(self["activities"], dict)
+            and "auto_calc" in self["activities"]
+        ):
             return bool(self["activities"]["auto_calc"])
         return bool(self.get("auto_calc", True))
 
@@ -129,20 +133,6 @@ class Settings(dict):
             "action": argparse.BooleanOptionalAction,
             "help": "Enable/disable overlay break window.",
         },
-        "font_size": {
-            "group": "overlay",
-            "default": 48,
-            "type": int,
-            "long": "--overlay-font-size",
-            "help": "Font size for overlay timer.",
-        },
-        "color": {
-            "group": "overlay",
-            "default": "white",
-            "type": str,
-            "long": "--overlay-color",
-            "help": "Text color for overlay (e.g., 'white', '#FF0000').",
-        },
         "bg_color": {
             "group": "overlay",
             "default": "black",
@@ -156,6 +146,90 @@ class Settings(dict):
             "type": float,
             "long": "--overlay-opacity",
             "help": "Opacity for overlay (0.0 to 1.0).",
+        },
+        "title_color": {
+            "group": "overlay",
+            "default": "white",
+            "type": str,
+            "long": "--overlay-title-color",
+            "help": "Color for overlay title text.",
+        },
+        "title_font_family": {
+            "group": "overlay",
+            "default": "DejaVu Sans",
+            "type": str,
+            "long": "--overlay-title-font-family",
+            "help": "Font family for overlay title.",
+        },
+        "title_font_size": {
+            "group": "overlay",
+            "default": 28,
+            "type": int,
+            "long": "--overlay-title-font-size",
+            "help": "Font size for overlay title.",
+        },
+        "short_break_title": {
+            "group": "overlay",
+            "default": "SHORT BREAK",
+            "type": str,
+            "long": "--overlay-short-break-title",
+            "help": "Title text for short break overlay.",
+        },
+        "long_break_title": {
+            "group": "overlay",
+            "default": "LONG BREAK",
+            "type": str,
+            "long": "--overlay-long-break-title",
+            "help": "Title text for long break overlay.",
+        },
+        "font_size": {
+            "group": "overlay",
+            "default": 48,
+            "type": int,
+            "long": "--overlay-font-size",
+            "help": "Font size for overlay timer.",
+        },
+        "color": {
+            "group": "overlay",
+            "default": "white",
+            "type": str,
+            "long": "--overlay-color",
+            "help": "Text color for overlay timer.",
+        },
+        "inactive_segment_color": {
+            "group": "overlay",
+            "default": "#181D24",
+            "type": str,
+            "long": "--overlay-inactive-color",
+            "help": "Color for inactive timer segments.",
+        },
+        "msg": {
+            "group": "overlay",
+            "default": "Step away from the screen. Input is locked.",
+            "type": str,
+            "long": "--overlay-msg",
+            "help": "Message text for break overlay.",
+        },
+        "msg_color": {
+            "group": "overlay",
+            "default": "#888888",
+            "type": str,
+            "long": "--overlay-msg-color",
+            "help": "Color for overlay message text.",
+        },
+        "msg_font_family": {
+            "group": "overlay",
+            "default": "DejaVu Sans",
+            "type": str,
+            "long": "--overlay-msg-font-family",
+            "help": "Font family for overlay message.",
+        },
+        "msg_font_size": {
+            "group": "overlay",
+            "default": 16,
+            "type": int,
+            "long": "--overlay-msg-font-size",
+            "help": "Font size for overlay message.",
         },
         # --- [activities] ---
         "activity": {
@@ -280,12 +354,66 @@ class Settings(dict):
 
     def _get_conf_settings(self):
         """Loads settings from config file."""
-        settings: dict[str, dict[str, str]] = {}
+        settings: dict[str, dict[str, str | int | float | bool]] = {}
         for sect_name, sect in self.conf_file_parser.items():
             if sect_name == "DEFAULT":
                 continue
             else:
-                settings[sect_name] = dict(sect)
+                converted_sect = {}
+                for key, value in sect.items():
+                    # Check if this section and key is in CLI_ARGS
+                    found = False
+                    for dest, spec in self.CLI_ARGS.items():
+                        group = spec.get("group")
+                        if group == sect_name and dest == key:
+                            # Convert the value to the specified type or action
+                            try:
+                                if spec.get("type") == bool:
+                                    value_lower = value.lower()
+                                    if value_lower in ["true", "1", "yes", "on"]:
+                                        converted_sect[key] = True
+                                    elif value_lower in ["false", "0", "no", "off"]:
+                                        converted_sect[key] = False
+                                    else:
+                                        raise ValueError(
+                                            f"Invalid boolean value: {value}"
+                                        )
+                                elif spec.get("action") in (
+                                    argparse.BooleanOptionalAction,
+                                    "store_true",
+                                    "store_false",
+                                ):
+                                    # Handle boolean actions
+                                    value_lower = value.lower()
+                                    if value_lower in ["true", "1", "yes", "on"]:
+                                        converted_sect[key] = True
+                                    elif value_lower in ["false", "0", "no", "off"]:
+                                        converted_sect[key] = False
+                                    else:
+                                        raise ValueError(
+                                            f"Invalid boolean value: {value}"
+                                        )
+                                else:
+                                    # Use spec["type"] if present, otherwise keep as string
+                                    if "type" in spec:
+                                        converted_sect[key] = spec["type"](value)
+                                    else:
+                                        converted_sect[key] = value
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to convert config value {key}={
+                                        value
+                                    } to type {spec.get('type', spec.get('action'))}: {
+                                        e
+                                    }. Using string value."
+                                )
+                                converted_sect[key] = value
+                            found = True
+                            break
+                    if not found:
+                        # If not found in CLI_ARGS, keep as string (for sections like activities.*)
+                        converted_sect[key] = value
+                settings[sect_name] = converted_sect
         logger.debug(f"_get_conf_settings: {settings}")
         return settings
 
@@ -297,14 +425,15 @@ class Settings(dict):
             else ""
         )
         act_sections = [
-            s[len("activities."):]
+            s[len("activities.") :]
             for s in self.conf_file_parser.sections()
             if s.startswith("activities.")
         ]
         if not act_sections and self.conf_file_parser.has_section("activities"):
             valid = {"auto_calc", "daily", "weekly", "monthly", "yearly"}
             act_sections = [
-                opt for opt in self.conf_file_parser.options("activities")
+                opt
+                for opt in self.conf_file_parser.options("activities")
                 if opt not in valid
             ]
         activity_names = ", ".join(act_sections or ["other"])
