@@ -104,10 +104,20 @@ study = 50 5 10 4
 
 [overlay]
 enabled = true
-font_size = 48
-color = white
-bg_color = black
+bg_color = #283618
 opacity = 0.8
+title_color = #fefae0
+# title_font_family = 
+title_font_size = 48
+# short_break_title = 
+# long_break_title = 
+font_size = 48
+color = #bc6c25
+inactive_segment_color = #606c38
+# msg = 
+msg_color = #fefae0
+# msg_font_family = 
+msg_font_size = 12
 
 [activities]
 auto_calc = false
