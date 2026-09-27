@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.1](https://github.com/luiisca/pomlock/compare/v4.1.0...v4.1.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* break overlay broken on pypi version ([b6909ab](https://github.com/luiisca/pomlock/commit/b6909abff762ece9bb8cb11052756e9391f1f1db))
+
 ## [4.1.0](https://github.com/luiisca/pomlock/compare/v4.0.5...v4.1.0) (2026-09-27)
 
 
