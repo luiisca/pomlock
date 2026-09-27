@@ -13,6 +13,9 @@ from typing import Optional
 from pomlock.settings import Settings
 
 from ..logger import logger
+from .compat import patch_stream_capture
+
+patch_stream_capture()
 
 POLL_INTERVAL_MS = 50
 TCL_INIT_FILE = "init.tcl"
@@ -687,9 +690,9 @@ class BreakOverlayManager:
             return
 
         self._is_active = True
-        self._stop_event = mp.Event()
-
+        # Initialize stop event and isolated subprocess within protected block.
         try:
+            self._stop_event = mp.Event()
             self._proc = mp.Process(
                 target=run_standalone_overlay,
                 args=(is_long_break, initial_remaining_s, self._stop_event),
