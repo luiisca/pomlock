@@ -56,6 +56,9 @@ pomlock -a coding
 # Disable keyboard and mouse blocking
 pomlock --no-block-input
 
+# Open interactive session setup screen
+pomlock --setup
+
 # List configured presets
 pomlock --show-presets
 

@@ -21,6 +21,11 @@ class GoalPeriod(str, Enum):
     YEARLY = "yearly"
 
 
+class StartMode(str, Enum):
+    DIRECT = "direct"
+    SETUP = "setup"
+
+
 WORK_DAYS_PER_WEEK = 5
 WORK_DAYS_PER_MONTH = 22
 WORK_DAYS_PER_YEAR = 260

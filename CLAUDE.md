@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Running the Application
 - Start with default settings: `pomlock`
+- Open session setup screen: `pomlock --setup`
 - Use a timer preset: `pomlock --timer ultradian` (90/20 cycle)
 - Set custom timer: `pomlock --timer "45 15 30 3"` (45min work, 15min short break, 30min long break after 3 cycles)
 - Tag activity: `pomlock --activity coding`

@@ -1032,3 +1032,156 @@ Screen {
     overflow: hidden;
 }
 
+/* --- Session Setup Screen --- */
+.setup-screen {
+    background: $background;
+    color: $foreground;
+}
+
+.setup-container {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+    overflow-y: auto;
+}
+
+.setup-header-banner {
+    width: 100%;
+    height: auto;
+    background: $surface;
+    border: solid $panel;
+    padding: 1 2;
+    margin-bottom: 1;
+}
+
+.setup-title {
+    text-style: bold;
+    color: $primary;
+}
+
+.setup-subtitle {
+    color: $text-muted;
+}
+
+.setup-grid {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.setup-card {
+    height: auto;
+    background: $surface;
+    border: solid $panel;
+    padding: 1 2;
+}
+
+.setup-card:focus-within {
+    border: double $accent;
+    background: $surface-lighten-1;
+}
+
+.preset-card {
+    width: 1fr;
+    margin-right: 1;
+}
+
+.activity-card {
+    width: 1fr;
+}
+
+.setup-card-title {
+    text-style: bold;
+    color: $text;
+}
+
+.setup-card-subtitle {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+.setup-section-label {
+    color: $text-muted;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
+.setup-timeline-box {
+    width: 100%;
+    height: 3;
+    background: $panel;
+    padding: 0 1;
+    color: $accent;
+    margin-top: 0;
+}
+
+.setup-activity-box {
+    width: 100%;
+    height: 3;
+    background: $panel;
+    padding: 0 1;
+    color: $primary;
+    margin-top: 0;
+}
+
+.task-card-disabled {
+    width: 100%;
+    height: auto;
+    background: $surface;
+    border: dashed $panel;
+    padding: 1 2;
+    margin-bottom: 1;
+    opacity: 0.6;
+}
+
+.task-card-header-row {
+    width: 100%;
+    height: 1;
+}
+
+.task-badge-disabled {
+    color: $text-disabled;
+    text-style: bold;
+    margin-left: 2;
+}
+
+.task-dim-text {
+    color: $text-disabled;
+}
+
+.setup-task-input-disabled {
+    width: 100%;
+    border: solid $panel;
+    color: $text-disabled;
+}
+
+.setup-launch-bar {
+    width: 100%;
+    height: 4;
+    background: $surface;
+    border-top: solid $panel;
+    padding: 0 2;
+    align: left middle;
+    margin-top: 1;
+}
+
+.setup-summary-label {
+    width: 1fr;
+    color: $text;
+    align: left middle;
+}
+
+.setup-action-buttons {
+    width: auto;
+    align: right middle;
+}
+
+.setup-btn-cancel {
+    margin-right: 1;
+}
+
+.setup-btn-start {
+    background: $primary;
+    color: $text-primary;
+}
+

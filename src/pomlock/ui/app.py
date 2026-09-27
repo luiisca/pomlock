@@ -7,7 +7,13 @@ import time
 
 from pomlock.settings import Settings
 
-from ..constants import DEFAULT_OVERLAY_ACCENT, SessionKind, StatsView, TimerState
+from ..constants import (
+    DEFAULT_OVERLAY_ACCENT,
+    SessionKind,
+    StartMode,
+    StatsView,
+    TimerState,
+)
 from ..history_store import HistoryStore
 from ..logger import logger
 from ..timer_engine import TimerEngine
@@ -15,6 +21,11 @@ from .break_overlay import BreakOverlayManager
 from .screens.break_screen import BreakScreen
 from .screens.main_screen import MainScreen
 from .screens.settings_screen import SettingsScreen
+from .screens.setup_screen import (
+    CancelSetupRequested,
+    SetupScreen,
+    StartSessionRequested,
+)
 from .screens.stats_screen import StatsScreen
 from .widgets.timer_card import TimerCard
 
@@ -47,10 +58,21 @@ class PomlockApp(App):
     def __init__(
         self,
         history_store: HistoryStore | None = None,
+        start_mode: StartMode | None = None,
     ):
         super().__init__()
         self.history_store = history_store or HistoryStore()
         self.settings = Settings()
+
+        self._start_mode = (
+            start_mode
+            if start_mode is not None
+            else (
+                StartMode.SETUP
+                if self.settings.get("setup", False)
+                else StartMode.DIRECT
+            )
+        )
 
         self.engine = TimerEngine(
             history_store=self.history_store,
@@ -70,12 +92,36 @@ class PomlockApp(App):
         )
         self.add_mode("stats", StatsScreen)
         self.add_mode("settings", SettingsScreen)
+        self.add_mode("setup", SetupScreen)
 
     def on_mount(self) -> None:
-        """Start countdown engine and switch to main mode."""
+        """Initialize mode and start periodic tick timer."""
+        self.set_interval(1, self._tick_engine)
+
+        if self._start_mode == StartMode.SETUP:
+            self.switch_mode("setup")
+            return
+
         self.switch_mode("main")
         self.engine.start()
-        self.set_interval(1, self._tick_engine)
+
+    def start_session(self, preset: str, activity: str) -> None:
+        """Apply setup parameters and initiate session."""
+        self.engine.configure_session(preset=preset, activity=activity)
+        self.switch_mode("main")
+        self.engine.start()
+
+    @on(StartSessionRequested)
+    def on_start_session_requested(
+        self, event: StartSessionRequested
+    ) -> None:
+        self.start_session(preset=event.preset, activity=event.activity)
+
+    @on(CancelSetupRequested)
+    def on_cancel_setup_requested(
+        self, event: CancelSetupRequested
+    ) -> None:
+        self.action_quit_app()
 
     def _tick_engine(self) -> None:
         """Periodic clock update."""

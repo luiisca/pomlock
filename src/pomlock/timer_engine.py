@@ -74,6 +74,36 @@ class TimerEngine:
             return self.l_break_m
         return self.s_break_m
 
+    def configure_session(
+        self,
+        preset: str | None = None,
+        activity: str | None = None,
+    ) -> None:
+        """Apply session preset and activity before or during a session."""
+        if activity:
+            self.activity = str(activity)
+            self.settings["activity"] = self.activity
+
+        if not preset:
+            return
+
+        self.settings.setdefault("general", {})["timer"] = preset
+        pomodoro_settings = parse_timer_m(self.settings)
+
+        self.pomo_m = float(pomodoro_settings.get(Pomodoro.FOCUS, self.pomo_m))
+        self.s_break_m = float(
+            pomodoro_settings.get(Pomodoro.SHORT_BREAK, self.s_break_m)
+        )
+        self.l_break_m = float(
+            pomodoro_settings.get(Pomodoro.LONG_BREAK, self.l_break_m)
+        )
+        self.total_cycles = int(
+            pomodoro_settings.get(Pomodoro.CYCLES, self.total_cycles)
+        )
+
+        if self.kind == SessionKind.POMODORO and self.state == TimerState.STOPPED:
+            self.duration_s = int(round(self.pomo_m * 60))
+
     def start(self) -> None:
         """Start or restart the timer loop."""
         if self._current_block_id is None:

@@ -301,6 +301,13 @@ class Settings(dict):
             "default": False,
             "help": "Enable verbose logging.",
         },
+        "setup": {
+            "long": "--setup",
+            "short": "-s",
+            "action": "store_true",
+            "default": False,
+            "help": "Open quick session setup screen before starting timer.",
+        },
     }
 
     def __new__(cls, *args, **kwargs):
