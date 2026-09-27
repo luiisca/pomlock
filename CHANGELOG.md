@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.0.5](https://github.com/luiisca/pomlock/compare/v4.0.4...v4.0.5) (2026-09-27)
+
+
+### Bug Fixes
+
+* focus/break cycle looping early ([fdfd26b](https://github.com/luiisca/pomlock/commit/fdfd26bab83e89a17332fad6207cb049ea8b37b2))
+* some overlay settings not being used by break_overlay ([3301f40](https://github.com/luiisca/pomlock/commit/3301f405ec4c2e216cca7aae35560c4bd382d88a))
+
+
+### Documentation
+
+* update readme to include new overlay settings ([42b9c18](https://github.com/luiisca/pomlock/commit/42b9c18ac5b1e9050289268787e0019951846bae))
+
 ## [4.0.4](https://github.com/luiisca/pomlock/compare/v4.0.3...v4.0.4) (2026-09-19)
 
 
