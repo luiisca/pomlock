@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/luiisca/pomlock/compare/v4.0.5...v4.1.0) (2026-09-27)
+
+
+### Features
+
+* add setup screen ([c6a3ecb](https://github.com/luiisca/pomlock/commit/c6a3ecbaad07648c25a8593b1c2b0e8a8bd00296))
+
 ## [4.0.5](https://github.com/luiisca/pomlock/compare/v4.0.4...v4.0.5) (2026-09-27)
 
 
