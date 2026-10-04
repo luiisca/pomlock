@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.2](https://github.com/luiisca/pomlock/compare/v4.2.1...v4.2.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* explicitely passed standard timer ignored ([9a29275](https://github.com/luiisca/pomlock/commit/9a292753504e156425b2f6537fd8e65ec764d391))
+
 ## [4.2.1](https://github.com/luiisca/pomlock/compare/v4.2.0...v4.2.1) (2026-10-04)
 
 
