@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="pomlock logo" width="360">
+  <img src="https://raw.githubusercontent.com/luiisca/pomlock/refs/heads/main/logo.png" alt="pomlock logo" width="360">
 </div>
 
 # pomlock
@@ -12,7 +12,7 @@ I built pomlock because desktop notifications never worked on me. I would dismis
 
 pomlock's interface is a terminal UI — the home screen, stats views, and break overlay all run in-terminal.
 
-![pomlock demo](demo.png)
+![pomlock demo](https://raw.githubusercontent.com/luiisca/pomlock/refs/heads/main/demo.png)
 
 ## Installation
 
