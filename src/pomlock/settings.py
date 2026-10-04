@@ -482,17 +482,27 @@ class Settings(dict):
         """Parses command line flags."""
         settings: dict[str, dict[str, str]] = {}
         parser = self._build_parser()
+
+        # Suppress parser defaults to identify explicitly provided CLI flags
+        for action in parser._actions:
+            action.default = argparse.SUPPRESS
+
         parsed_known, _ = parser.parse_known_args()
         parsed_args = vars(parsed_known)
-        for dest, spec in self.CLI_ARGS.items():
-            group = spec.get("group")
-            value = parsed_args[dest]
-            if value == spec["default"]:
+
+        # Populate settings using only explicitly supplied arguments
+        for dest, value in parsed_args.items():
+            if dest not in self.CLI_ARGS:
                 continue
-            elif group is None:
+
+            group = self.CLI_ARGS[dest].get("group")
+            if group is None:
                 settings[dest] = value
-            else:
-                settings.setdefault(group, {})[dest] = value
+                continue
+
+            settings.setdefault(group, {})[dest] = value
+
+        logger.debug(f"_get_cli_settings: {settings}")
         return settings
 
     def _preparse_custom_paths_args(self):
