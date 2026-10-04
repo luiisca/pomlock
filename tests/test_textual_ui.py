@@ -24,8 +24,9 @@ class TestTextualUI(unittest.IsolatedAsyncioTestCase):
         self.db_path = Path(self.temp_dir.name) / "test_history.db"
         self.history_store = HistoryStore(db_path=self.db_path)
 
-        # Isolate Settings — use clean temp config (standard preset: 25 5 20 4)
+        # Isolate Settings — use clean temp config with pause enabled
         self._conf_path = Path(self.temp_dir.name) / "test.conf"
+        self._conf_path.write_text("[general]\npause_button = true\n")
         Settings.reset()
         self._conf_patcher = patch.object(settings_module, "DEFAULT_CONFIG_FILE", self._conf_path)
         self._conf_patcher.start()

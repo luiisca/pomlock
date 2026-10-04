@@ -7,6 +7,8 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Label, Static
 
+from pomlock.settings import Settings
+
 DIGIT_GLYPHS = {
     "0": ["█████", "█   █", "█   █", "█   █", "█████"],
     "1": ["   ██", "   ██", "   ██", "   ██", "   ██"],
@@ -69,10 +71,10 @@ class ThickProgressBar(Widget):
         try:
             vars = self.app.get_css_variables()
             accent = str(vars.get("accent", "#FEA62B"))
-            track_bg = str(vars.get("panel-lighten-1",
-                           vars.get("panel", "#343F49")))
-            track_fg = str(vars.get("panel-lighten-3",
-                           vars.get("text-muted", "#69747D")))
+            track_bg = str(vars.get("panel-lighten-1", vars.get("panel", "#343F49")))
+            track_fg = str(
+                vars.get("panel-lighten-3", vars.get("text-muted", "#69747D"))
+            )
         except Exception:
             accent = "#FEA62B"
             track_bg = "#343F49"
@@ -114,6 +116,12 @@ class TimerCard(Vertical):
         self._activity = activity
         self._cycles_total = cycles_total
 
+        # Check if pause button is enabled in general settings
+        settings = Settings()
+        self._show_pause_button = bool(
+            settings.get("general", {}).get("pause_button", False)
+        )
+
     def compose(self) -> ComposeResult:
         self.border_title = "timer"
 
@@ -127,7 +135,9 @@ class TimerCard(Vertical):
 
         # Sub-info row with upcoming phase and cycle count
         with Horizontal(classes="timer-sub-row"):
-            yield Label("next: 05:00 short break", id="timer-next-phase", classes="subtext-dim")
+            yield Label(
+                "next: 05:00 short break", id="timer-next-phase", classes="subtext-dim"
+            )
             yield Label(f"1/{self._cycles_total}", id="cycle-badge")
 
         # Thick progress bar spanning full width of card
@@ -136,7 +146,9 @@ class TimerCard(Vertical):
         # Controls and activity status
         with Horizontal(classes="timer-controls-row"):
             with Horizontal(classes="timer-buttons"):
-                yield Button("play/pause", id="btn-pause", classes="timer-text-btn")
+                if self._show_pause_button:
+                    yield Button("play/pause", id="btn-pause", classes="timer-text-btn")
+
                 yield Button("reset", id="btn-reset", classes="timer-text-btn")
                 yield Button("skip", id="btn-skip", classes="timer-text-btn")
 
@@ -196,9 +208,11 @@ class TimerCard(Vertical):
             progress_bar = self.query_one("#timer-progress", ThickProgressBar)
             progress_bar.progress = progress_pct
 
-            # Update text pause/play button label
-            pause_btn = self.query_one("#btn-pause", Button)
-            pause_btn.label = "pause" if is_running else "play"
+            # Update text pause/play button label when enabled
+            if self._show_pause_button:
+                pause_btns = self.query("#btn-pause")
+                if pause_btns:
+                    pause_btns.first().label = "pause" if is_running else "play"
 
             # Update activity / phase label
             act_label = self.query_one("#timer-activity-name", Label)

@@ -90,6 +90,13 @@ class Settings(dict):
             "action": argparse.BooleanOptionalAction,
             "help": "Enable/disable keyboard/mouse input during break.",
         },
+        "pause_button": {
+            "group": "general",
+            "default": False,
+            "long": "--pause-button",
+            "action": argparse.BooleanOptionalAction,
+            "help": "Enable/disable the TUI pause button.",
+        },
         "notify": {
             "group": "general",
             "default": True,

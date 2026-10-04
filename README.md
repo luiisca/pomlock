@@ -56,6 +56,9 @@ pomlock -a coding
 # Disable keyboard and mouse blocking
 pomlock --no-block-input
 
+# Enable pause button and space pause (disabled by default)
+pomlock --pause-button
+
 # Open interactive session setup screen
 pomlock --setup
 
@@ -72,7 +75,7 @@ Navigate the interface with these keybindings:
 
 | Key | Action |
 | --- | --- |
-| `Space` | Pause or resume timer |
+| `Space` | Pause or resume timer (when pause is enabled) |
 | `s` | Skip current interval |
 | `r` | Reset current interval |
 | `z` | Toggle zen mode |
@@ -83,6 +86,8 @@ Navigate the interface with these keybindings:
 | `6` | Settings screen |
 | `q` | Quit |
 
+> **Note**: Pause is disabled by default to make it harder to avoid breaks, but it can be enabled with `--pause-button` or `pause_button = true` in config if needed.
+
 ## Configuration
 
 Settings live at `~/.config/pomlock/pomlock.conf`. You can edit this file directly or update values inside the app by pressing `6`.
@@ -92,6 +97,7 @@ Here is an example configuration:
 ```ini
 [general]
 block_input = true
+pause_button = false
 notify = true
 break_notify_msg = Time for a break!
 long_break_notify_msg = Time for a long break!
@@ -150,7 +156,7 @@ color = bar-blue
 
 ### Config Sections
 
-- `[general]`: Configures input blocking, notification text, and event scripts.
+- `[general]`: Configures input blocking, pause button availability, notification text, and event scripts.
 - `[presets]`: Timers defined as `WORK SHORT_BREAK LONG_BREAK CYCLES` in minutes.
 - `[overlay]`: Configures the full-screen break window. `opacity` accepts values from `0.0` to `1.0`.
 - `[activities]`: When `auto_calc = true`, overall goals are calculated from individual activities. When `false`, explicit goals set here apply.

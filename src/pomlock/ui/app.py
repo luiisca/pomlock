@@ -8,7 +8,6 @@ import time
 from pomlock.settings import Settings
 
 from ..constants import (
-    DEFAULT_OVERLAY_ACCENT,
     SessionKind,
     StartMode,
     StatsView,
@@ -42,7 +41,6 @@ class PomlockApp(App):
         Binding("z", "toggle_zen", "Zen Mode"),
         Binding("g", "cycle_goals", "Cycle Goals"),
         Binding("a", "cycle_chart_activity", "Cycle Activity"),
-        Binding("space", "toggle_timer", "Toggle Pause"),
         Binding("r", "reset_timer", "Reset"),
         Binding("s", "skip_timer", "Skip"),
         Binding("q", "quit_app", "Quit"),
@@ -63,6 +61,14 @@ class PomlockApp(App):
         super().__init__()
         self.history_store = history_store or HistoryStore()
         self.settings = Settings()
+
+        # Attach space key binding to toggle pause only when enabled
+        pause_enabled = bool(
+            self.settings.get("general", {}).get("pause_button", False)
+        )
+
+        if pause_enabled:
+            self.bind("space", "toggle_timer", description="Toggle Pause")
 
         self._start_mode = (
             start_mode
@@ -112,15 +118,11 @@ class PomlockApp(App):
         self.engine.start()
 
     @on(StartSessionRequested)
-    def on_start_session_requested(
-        self, event: StartSessionRequested
-    ) -> None:
+    def on_start_session_requested(self, event: StartSessionRequested) -> None:
         self.start_session(preset=event.preset, activity=event.activity)
 
     @on(CancelSetupRequested)
-    def on_cancel_setup_requested(
-        self, event: CancelSetupRequested
-    ) -> None:
+    def on_cancel_setup_requested(self, event: CancelSetupRequested) -> None:
         self.action_quit_app()
 
     def _tick_engine(self) -> None:
