@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.2.0](https://github.com/luiisca/pomlock/compare/v4.1.1...v4.2.0) (2026-10-04)
+
+
+### Features
+
+* make pause button availability configurable ([9aca9e6](https://github.com/luiisca/pomlock/commit/9aca9e64f49b795dad1b827019ab1759d559924d))
+
+
+### Bug Fixes
+
+* debug logs rendering on the terminal ([5bc8680](https://github.com/luiisca/pomlock/commit/5bc8680f911cb3e9ffc43a4731b1695afc12e421))
+
 ## [4.1.1](https://github.com/luiisca/pomlock/compare/v4.1.0...v4.1.1) (2026-09-27)
 
 
